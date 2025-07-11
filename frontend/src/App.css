@@ -1,0 +1,154 @@
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 40px 20px;
+  margin-bottom: 30px;
+}
+
+.App-header h1 {
+  margin: 0 0 10px 0;
+  font-size: 2.5rem;
+  font-weight: 300;
+}
+
+.App-header p {
+  margin: 0;
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.tab-content {
+  min-height: 500px;
+}
+
+@media (max-width: 768px) {
+  .App-header h1 {
+    font-size: 2rem;
+  }
+  
+  .App-header p {
+    font-size: 1rem;
+  }
+}
+
+/* Well Grid Styles */
+.well-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.well {
+  aspect-ratio: 1;
+  border: 1px solid #dee2e6;
+  background-color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  min-height: 40px;
+}
+
+.well:hover {
+  background-color: #e9ecef;
+  transform: scale(1.05);
+}
+
+.well.selected {
+  background-color: #007bff;
+  color: white;
+  border-color: #0056b3;
+}
+
+.well.has-content {
+  background-color: #28a745;
+  color: white;
+  border-color: #1e7e34;
+}
+
+.well-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 8px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.well-id {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.well-materials {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 60%;
+  overflow-y: auto;
+}
+
+.well-material {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-size: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Materials Table Styles */
+.materials-table-container {
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  background-color: white;
+}
+
+.materials-table-container .table {
+  margin-bottom: 0;
+}
+
+.materials-table-container .table th {
+  position: sticky;
+  top: 0;
+  background-color: #f8f9fa;
+  z-index: 10;
+}
+
+.selected-row {
+  background-color: #007bff !important;
+  color: white !important;
+}
+
+.selected-row:hover {
+  background-color: #0056b3 !important;
+}
+
+/* Split Screen Layout */
+.materials-section, .plate-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.materials-section h3, .plate-section h3 {
+  margin-bottom: 10px;
+  padding-bottom: 5px;
+  border-bottom: 2px solid #dee2e6;
+} 

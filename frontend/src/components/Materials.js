@@ -8,6 +8,15 @@ const Materials = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [message, setMessage] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newMaterial, setNewMaterial] = useState({
+    name: '',
+    alias: '',
+    cas: '',
+    molecular_weight: '',
+    smiles: '',
+    barcode: ''
+  });
 
 
 
@@ -133,6 +142,7 @@ const Materials = () => {
       alias: chemical.common_name || '',
       cas: chemical.cas_number || '',
       molecular_weight: chemical.molecular_weight || '',
+      smiles: chemical.smiles || '',
       barcode: chemical.barcode || ''
     };
 
@@ -142,18 +152,42 @@ const Materials = () => {
     setShowSearch(false);
   };
 
-
-
-  const addManualMaterial = () => {
-    const newMaterial = {
+  const openAddModal = () => {
+    setNewMaterial({
       name: '',
       alias: '',
       cas: '',
       molecular_weight: '',
+      smiles: '',
       barcode: ''
-    };
+    });
+    setShowAddModal(true);
+  };
 
-    setMaterials(prev => [...prev, newMaterial]);
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setNewMaterial({
+      name: '',
+      alias: '',
+      cas: '',
+      molecular_weight: '',
+      smiles: '',
+      barcode: ''
+    });
+  };
+
+  const handleNewMaterialChange = (field, value) => {
+    setNewMaterial(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const addNewMaterial = () => {
+    if (newMaterial.name.trim()) {
+      setMaterials(prev => [...prev, { ...newMaterial }]);
+      closeAddModal();
+    }
   };
 
   const updateMaterial = (index, field, value) => {
@@ -251,16 +285,14 @@ const Materials = () => {
         )}
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <button className="btn btn-secondary" onClick={addManualMaterial}>
-          Add Manual Material
+      <div className="materials-actions-bar">
+        <button className="btn btn-secondary" onClick={openAddModal}>
+          Add New Material
         </button>
         <button className="btn btn-success" onClick={saveMaterials}>
           Save Materials
         </button>
       </div>
-
-
 
       <table className="table">
         <thead>
@@ -269,6 +301,7 @@ const Materials = () => {
             <th>Alias</th>
             <th>CAS</th>
             <th>Molecular Weight</th>
+            <th>SMILES</th>
             <th>Barcode</th>
             <th>Actions</th>
           </tr>
@@ -276,53 +309,13 @@ const Materials = () => {
         <tbody>
           {materials.map((material, index) => (
             <tr key={index}>
-              <td>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={material.name}
-                  onChange={(e) => updateMaterial(index, 'name', e.target.value)}
-                  placeholder="Chemical name"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={material.alias}
-                  onChange={(e) => updateMaterial(index, 'alias', e.target.value)}
-                  placeholder="Common name"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={material.cas}
-                  onChange={(e) => updateMaterial(index, 'cas', e.target.value)}
-                  placeholder="CAS number"
-                />
-              </td>
-              <td>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="form-control"
-                  value={material.molecular_weight}
-                  onChange={(e) => updateMaterial(index, 'molecular_weight', e.target.value)}
-                  placeholder="g/mol"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={material.barcode}
-                  onChange={(e) => updateMaterial(index, 'barcode', e.target.value)}
-                  placeholder="Barcode"
-                />
-              </td>
-              <td>
+              <td>{material.name}</td>
+              <td>{material.alias}</td>
+              <td>{material.cas}</td>
+              <td>{material.molecular_weight}</td>
+              <td>{material.smiles}</td>
+              <td>{material.barcode}</td>
+              <td className="actions-cell">
                 <button
                   className="btn btn-secondary"
                   onClick={() => removeMaterial(index)}
@@ -338,8 +331,102 @@ const Materials = () => {
 
       {materials.length === 0 && (
         <p style={{ textAlign: 'center', color: '#666', marginTop: '20px' }}>
-          No materials added yet. Search inventory or add manual materials to get started.
+          No materials added yet. Search inventory or add new materials to get started.
         </p>
+      )}
+
+      {/* Add Material Modal */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={closeAddModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Add New Material</h3>
+              <button className="modal-close" onClick={closeAddModal}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label htmlFor="name">Name *</label>
+                <input
+                  type="text"
+                  id="name"
+                  className="form-control"
+                  value={newMaterial.name}
+                  onChange={(e) => handleNewMaterialChange('name', e.target.value)}
+                  placeholder="Chemical name"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="alias">Alias</label>
+                <input
+                  type="text"
+                  id="alias"
+                  className="form-control"
+                  value={newMaterial.alias}
+                  onChange={(e) => handleNewMaterialChange('alias', e.target.value)}
+                  placeholder="Common name or alias"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="cas">CAS #</label>
+                <input
+                  type="text"
+                  id="cas"
+                  className="form-control"
+                  value={newMaterial.cas}
+                  onChange={(e) => handleNewMaterialChange('cas', e.target.value)}
+                  placeholder="CAS number"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="molecular_weight">Molecular Weight</label>
+                <input
+                  type="number"
+                  id="molecular_weight"
+                  step="0.01"
+                  className="form-control"
+                  value={newMaterial.molecular_weight}
+                  onChange={(e) => handleNewMaterialChange('molecular_weight', e.target.value)}
+                  placeholder="g/mol"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="smiles">SMILES</label>
+                <input
+                  type="text"
+                  id="smiles"
+                  className="form-control"
+                  value={newMaterial.smiles}
+                  onChange={(e) => handleNewMaterialChange('smiles', e.target.value)}
+                  placeholder="SMILES notation"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="barcode">Bar Code</label>
+                <input
+                  type="text"
+                  id="barcode"
+                  className="form-control"
+                  value={newMaterial.barcode}
+                  onChange={(e) => handleNewMaterialChange('barcode', e.target.value)}
+                  placeholder="Barcode"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeAddModal}>
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={addNewMaterial}
+                disabled={!newMaterial.name.trim()}
+              >
+                Add Material
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

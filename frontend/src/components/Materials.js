@@ -9,6 +9,10 @@ const Materials = () => {
   const [message, setMessage] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showMoleculeModal, setShowMoleculeModal] = useState(false);
+  const [currentMolecule, setCurrentMolecule] = useState({ smiles: '', name: '' });
+  const [moleculeImage, setMoleculeImage] = useState(null);
+  const [moleculeLoading, setMoleculeLoading] = useState(false);
   const [newMaterial, setNewMaterial] = useState({
     name: '',
     alias: '',
@@ -211,6 +215,40 @@ const Materials = () => {
     }
   };
 
+  const generateMoleculeImage = async (smiles, name, alias) => {
+    if (!smiles || !smiles.trim()) {
+      setMessage('No SMILES string provided');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    try {
+      setMoleculeLoading(true);
+      setCurrentMolecule({ smiles: smiles.trim(), name, alias });
+      
+      const response = await axios.post('/api/molecule/image', {
+        smiles: smiles.trim(),
+        width: 400,
+        height: 400
+      });
+      
+      setMoleculeImage(response.data.image);
+      setShowMoleculeModal(true);
+    } catch (error) {
+      console.error('Error generating molecule image:', error);
+      setMessage('Error generating molecule image: ' + (error.response?.data?.error || error.message));
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setMoleculeLoading(false);
+    }
+  };
+
+  const closeMoleculeModal = () => {
+    setShowMoleculeModal(false);
+    setMoleculeImage(null);
+    setCurrentMolecule({ smiles: '', name: '' });
+  };
+
   return (
     <div className="card">
       {console.log('🎯 Materials component rendering')}
@@ -313,7 +351,26 @@ const Materials = () => {
               <td>{material.alias}</td>
               <td>{material.cas}</td>
               <td>{material.molecular_weight}</td>
-              <td>{material.smiles}</td>
+              <td>
+                {material.smiles && material.smiles.trim() ? (
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => generateMoleculeImage(material.smiles, material.name, material.alias)}
+                    disabled={moleculeLoading}
+                    style={{ 
+                      padding: '5px 10px', 
+                      fontSize: '12px',
+                      backgroundColor: '#007bff',
+                      borderColor: '#007bff',
+                      color: 'white'
+                    }}
+                  >
+                    {moleculeLoading && currentMolecule.smiles === material.smiles ? 'Loading...' : 'View Molecule'}
+                  </button>
+                ) : (
+                  <span style={{ color: '#999', fontStyle: 'italic' }}>No SMILES</span>
+                )}
+              </td>
               <td>{material.barcode}</td>
               <td className="actions-cell">
                 <button
@@ -423,6 +480,48 @@ const Materials = () => {
                 disabled={!newMaterial.name.trim()}
               >
                 Add Material
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Molecule Modal */}
+      {showMoleculeModal && (
+        <div className="modal-overlay" onClick={closeMoleculeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh' }}>
+            <div className="modal-header">
+              <h3>Molecule Structure: {currentMolecule.name}</h3>
+              <button className="modal-close" onClick={closeMoleculeModal}>×</button>
+            </div>
+            <div className="modal-body" style={{ textAlign: 'center' }}>
+              {moleculeImage ? (
+                <div>
+                  <img 
+                    src={`data:image/png;base64,${moleculeImage}`} 
+                    alt={`Molecule structure of ${currentMolecule.name}`}
+                    style={{ 
+                      maxWidth: '100%', 
+                      maxHeight: '400px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px'
+                    }}
+                  />
+                  {currentMolecule.alias && (
+                    <div style={{ marginTop: '10px', fontSize: '14px', color: '#333' }}>
+                      <strong>Alias:</strong> {currentMolecule.alias}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ color: '#666', fontStyle: 'italic' }}>
+                  Failed to generate molecule image
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeMoleculeModal}>
+                Close
               </button>
             </div>
           </div>

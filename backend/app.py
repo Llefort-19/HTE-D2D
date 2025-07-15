@@ -8,6 +8,12 @@ import tempfile
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem import AllChem
+from PIL import Image
+import io
+import base64
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +27,43 @@ current_experiment = {
     'analytical_data': [],
     'results': []
 }
+
+def generate_molecule_image(smiles_string, image_size=(300, 300)):
+    """
+    Generate a 2D molecule image from a SMILES string.
+    
+    Args:
+        smiles_string (str): The SMILES string representation of the molecule
+        image_size (tuple): Size of the output image (width, height)
+    
+    Returns:
+        str: Base64 encoded image data or None if SMILES is invalid
+    """
+    try:
+        print(f"[generate_molecule_image] Received SMILES: {smiles_string}")
+        # Create molecule from SMILES
+        mol = Chem.MolFromSmiles(smiles_string)
+        
+        if mol is None:
+            print("[generate_molecule_image] Invalid SMILES string.")
+            return None
+        
+        # Generate 2D coordinates
+        AllChem.Compute2DCoords(mol)
+        
+        # Create image
+        img = Draw.MolToImage(mol, size=image_size)
+        
+        # Convert to base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        
+        return img_str
+        
+    except Exception as e:
+        print(f"Error generating molecule image: {e}")
+        return None
 
 def load_inventory():
     """Load inventory from Excel file"""
@@ -43,8 +86,11 @@ def get_inventory():
             return jsonify({'error': 'Failed to load inventory'}), 500
     
     # Convert to list of dictionaries
-    chemicals = inventory_data.to_dict('records')
-    return jsonify(chemicals)
+    if inventory_data is not None:
+        chemicals = inventory_data.to_dict('records')
+        return jsonify(chemicals)
+    else:
+        return jsonify([])
 
 @app.route('/api/inventory/search', methods=['GET'])
 def search_inventory():
@@ -55,13 +101,16 @@ def search_inventory():
         if not load_inventory():
             return jsonify({'error': 'Failed to load inventory'}), 500
     
-    # Filter by chemical name or common name
-    filtered = inventory_data[
-        inventory_data['chemical_name'].str.lower().str.contains(query, na=False) |
-        inventory_data['common_name'].str.lower().str.contains(query, na=False)
-    ]
-    
-    return jsonify(filtered.to_dict('records'))
+    if inventory_data is not None:
+        # Filter by chemical name or common name
+        filtered = inventory_data[
+            inventory_data['chemical_name'].str.lower().str.contains(query, na=False) |
+            inventory_data['common_name'].str.lower().str.contains(query, na=False)
+        ]
+        
+        return jsonify(filtered.to_dict('records'))
+    else:
+        return jsonify([])
 
 @app.route('/api/experiment/context', methods=['GET', 'POST'])
 def experiment_context():
@@ -126,7 +175,8 @@ def export_experiment():
         wb = Workbook()
         
         # Remove default sheet
-        wb.remove(wb.active)
+        if wb.active:
+            wb.remove(wb.active)
         
         # Context sheet
         ws_context = wb.create_sheet("Context")
@@ -143,7 +193,7 @@ def export_experiment():
         
         # Materials sheet
         ws_materials = wb.create_sheet("Materials")
-        if current_experiment['materials']:
+        if current_experiment.get('materials'):
             # Add headers
             headers = ['Nr', 'Name', 'Alias', 'CAS', 'SMILES', 'Lot number', 'Role', 
                       'Quantification level', 'Analytical wavelength', 'RRF to IS']
@@ -167,7 +217,7 @@ def export_experiment():
         
         # Procedure sheet
         ws_procedure = wb.create_sheet("Procedure")
-        if current_experiment['procedure']:
+        if current_experiment.get('procedure'):
             # Add headers for 96-well plate
             headers = ['Nr', 'Well', 'ID']
             # Add compound columns (up to 15 compounds)
@@ -211,7 +261,7 @@ def export_experiment():
         
         # Analytical data sheet
         ws_analytical = wb.create_sheet("Analytical data (1)")
-        if current_experiment['analytical_data']:
+        if current_experiment.get('analytical_data'):
             # Add headers
             headers = ['Nr', 'Well', 'ID']
             for i in range(1, 16):
@@ -233,7 +283,7 @@ def export_experiment():
         
         # Results sheet
         ws_results = wb.create_sheet("Results (1)")
-        if current_experiment['results']:
+        if current_experiment.get('results'):
             # Add headers
             headers = ['Nr', 'Well', 'ID', 'Conversion_%', 'Yield_%', 'Selectivity_%']
             ws_results.append(headers)
@@ -250,6 +300,108 @@ def export_experiment():
                 ]
                 ws_results.append(row)
         
+        # Well Contents sheet - Detailed view of each well
+        ws_well_contents = wb.create_sheet("Well Contents")
+        
+        # Create a mapping of materials by name for quick lookup
+        materials_map = {}
+        for material in current_experiment.get('materials', []):
+            materials_map[material.get('name', '').lower()] = material
+        
+        # Initialize well contents data
+        well_contents = {}
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+            for row in range(1, 13):
+                well = f'{col}{row}'
+                well_contents[well] = {
+                    'compounds': [],
+                    'reagents': [],
+                    'solvents': []
+                }
+        
+        # Fill in well contents from procedure data
+        if current_experiment.get('procedure'):
+            print(f"Processing {len(current_experiment['procedure'])} procedure entries")
+            print(f"Procedure data structure: {current_experiment['procedure']}")
+            for well_data in current_experiment['procedure']:
+                well = well_data.get('well', '')
+                print(f"Processing well: {well}")
+                print(f"Well data keys: {list(well_data.keys())}")
+                if well in well_contents:
+                    # Process materials array
+                    materials = well_data.get('materials', [])
+                    print(f"  Found {len(materials)} materials in well {well}")
+                    
+                    for material in materials:
+                        name = material.get('name', '')
+                        amount = material.get('amount', '')
+                        alias = material.get('alias', '')
+                        cas = material.get('cas', '')
+                        
+                        if name and amount:
+                            print(f"  Adding material: {name} ({amount} mmol)")
+                            # For now, treat all materials as compounds
+                            # You can add logic here to distinguish compounds, reagents, solvents
+                            well_contents[well]['compounds'].append({
+                                'name': name,
+                                'amount': amount,
+                                'alias': alias,
+                                'cas': cas
+                            })
+                else:
+                    print(f"  Well {well} not found in well_contents")
+        else:
+            print("No procedure data found")
+            print(f"Current experiment keys: {list(current_experiment.keys())}")
+            print(f"Procedure data: {current_experiment.get('procedure')}")
+        
+        # Find the maximum number of compounds across all wells to determine column count
+        max_compounds = 0
+        for well in well_contents:
+            compounds_count = len(well_contents[well]['compounds'])
+            reagents_count = len(well_contents[well]['reagents'])
+            solvents_count = len(well_contents[well]['solvents'])
+            total_materials = compounds_count + reagents_count + solvents_count
+            max_compounds = max(max_compounds, total_materials)
+        
+        # Create header row
+        headers = ['Well']
+        for i in range(1, max_compounds + 1):
+            headers.extend([f'Compound_{i}_Name', f'Compound_{i}_Alias', f'Compound_{i}_CAS', f'Compound_{i}_Amount'])
+        
+        ws_well_contents.append(headers)
+        
+        # Add data for each well (all 96 wells)
+        for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+            for row in range(1, 13):
+                well = f'{col}{row}'
+                contents = well_contents[well]
+                
+                # Combine all materials into a single list
+                all_materials = []
+                all_materials.extend(contents['compounds'])
+                all_materials.extend(contents['reagents'])
+                all_materials.extend(contents['solvents'])
+                
+                # Create row data
+                row_data = [well]
+                
+                # Add materials to columns (4 columns per material)
+                for i in range(max_compounds):
+                    if i < len(all_materials):
+                        material = all_materials[i]
+                        row_data.extend([
+                            material['name'],
+                            material.get('alias', ''),
+                            material.get('cas', ''),
+                            material['amount']
+                        ])
+                    else:
+                        # Fill empty columns
+                        row_data.extend(['', '', '', ''])
+                
+                ws_well_contents.append(row_data)
+        
         # Save to temporary file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:
             wb.save(tmp.name)
@@ -259,6 +411,48 @@ def export_experiment():
                         download_name=f'HTE_experiment_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
     
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug/procedure', methods=['GET'])
+def debug_procedure():
+    """Debug endpoint to check procedure data structure"""
+    return jsonify({
+        'procedure_count': len(current_experiment.get('procedure', [])),
+        'procedure_data': current_experiment.get('procedure', []),
+        'experiment_keys': list(current_experiment.keys())
+    })
+
+@app.route('/api/molecule/image', methods=['POST'])
+def get_molecule_image():
+    """Generate molecule image from SMILES string"""
+    try:
+        data = request.get_json()
+        smiles = data.get('smiles', '').strip()
+        print(f"[/api/molecule/image] Incoming SMILES: '{smiles}'")
+        
+        if not smiles:
+            print("[/api/molecule/image] No SMILES string provided.")
+            return jsonify({'error': 'SMILES string is required'}), 400
+        
+        # Get optional image size
+        width = data.get('width', 300)
+        height = data.get('height', 300)
+        
+        # Generate image
+        image_data = generate_molecule_image(smiles, (width, height))
+        
+        if image_data is None:
+            print("[/api/molecule/image] Failed to generate image for SMILES.")
+            return jsonify({'error': 'Invalid SMILES string'}), 400
+        
+        return jsonify({
+            'image': image_data,
+            'format': 'png',
+            'size': {'width': width, 'height': height}
+        })
+        
+    except Exception as e:
+        print(f"[/api/molecule/image] Exception: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/experiment/reset', methods=['POST'])

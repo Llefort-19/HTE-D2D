@@ -11,6 +11,7 @@ const Procedure = () => {
   const [message, setMessage] = useState('');
   const [clickedWell, setClickedWell] = useState(null);
   const [showWellModal, setShowWellModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Generate 96 wells (8 rows x 12 columns)
   const wells = [];
@@ -26,6 +27,21 @@ const Procedure = () => {
   useEffect(() => {
     loadProcedure();
     loadMaterials();
+  }, []);
+
+  // Refresh data when component becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadProcedure();
+        loadMaterials();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -72,17 +88,6 @@ const Procedure = () => {
       setProcedure(prev => prev.map((p, i) => i === existingIndex ? updatedData : p));
     } else {
       setProcedure(prev => [...prev, updatedData]);
-    }
-  };
-
-  const saveProcedure = async () => {
-    try {
-      await axios.post('/api/experiment/procedure', procedure);
-      setMessage('Procedure saved successfully!');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      setMessage('Error saving procedure: ' + error.message);
-      setTimeout(() => setMessage(''), 3000);
     }
   };
 
@@ -142,8 +147,6 @@ const Procedure = () => {
     }
   };
 
-
-
   const handleRowClick = (rowLetter, event) => {
     const rowWells = columns.map(col => `${rowLetter}${col}`);
     
@@ -190,7 +193,7 @@ const Procedure = () => {
     }
   };
 
-  const addMaterialToWells = () => {
+  const addMaterialToWells = async () => {
     if (!selectedMaterial || selectedWells.length === 0 || !amount) return;
 
     const materialEntry = {
@@ -202,11 +205,31 @@ const Procedure = () => {
       amount: parseFloat(amount)
     };
 
+    // Create the updated procedure data directly
+    const updatedProcedure = [...procedure];
+    
     selectedWells.forEach(wellId => {
-      const wellData = getWellData(wellId);
+      const existingIndex = updatedProcedure.findIndex(p => p.well === wellId);
+      const wellData = existingIndex >= 0 ? updatedProcedure[existingIndex] : { well: wellId, materials: [] };
       const updatedMaterials = [...wellData.materials, materialEntry];
-      updateWellData(wellId, updatedMaterials);
+      
+      if (existingIndex >= 0) {
+        updatedProcedure[existingIndex] = { ...wellData, materials: updatedMaterials };
+      } else {
+        updatedProcedure.push({ well: wellId, materials: updatedMaterials });
+      }
     });
+
+    // Update state and save to backend
+    setProcedure(updatedProcedure);
+    
+    try {
+      await axios.post('/api/experiment/procedure', updatedProcedure);
+    } catch (error) {
+      console.error('Error auto-saving procedure:', error);
+      setMessage('Error saving changes: ' + error.message);
+      setTimeout(() => setMessage(''), 3000);
+    }
 
     // Clear selection
     setSelectedMaterial(null);
@@ -214,23 +237,37 @@ const Procedure = () => {
     setAmount('');
   };
 
-  const removeMaterialFromWells = () => {
+  const removeMaterialFromWells = async () => {
     if (!selectedMaterial || selectedWells.length === 0) return;
 
+    // Create the updated procedure data directly
+    const updatedProcedure = [...procedure];
     let removedCount = 0;
+    
     selectedWells.forEach(wellId => {
-      const wellData = getWellData(wellId);
-      const materialExists = wellData.materials.some(m => m.name === selectedMaterial.name);
-      if (materialExists) {
-        const updatedMaterials = wellData.materials.filter(m => m.name !== selectedMaterial.name);
-        updateWellData(wellId, updatedMaterials);
-        removedCount++;
+      const existingIndex = updatedProcedure.findIndex(p => p.well === wellId);
+      if (existingIndex >= 0) {
+        const wellData = updatedProcedure[existingIndex];
+        const materialExists = wellData.materials.some(m => m.name === selectedMaterial.name);
+        if (materialExists) {
+          const updatedMaterials = wellData.materials.filter(m => m.name !== selectedMaterial.name);
+          updatedProcedure[existingIndex] = { ...wellData, materials: updatedMaterials };
+          removedCount++;
+        }
       }
     });
 
     if (removedCount > 0) {
-      setMessage(`Removed ${selectedMaterial.name} from ${removedCount} well${removedCount !== 1 ? 's' : ''}`);
-      setTimeout(() => setMessage(''), 3000);
+      // Update state and save to backend
+      setProcedure(updatedProcedure);
+      
+      try {
+        await axios.post('/api/experiment/procedure', updatedProcedure);
+      } catch (error) {
+        console.error('Error auto-saving procedure:', error);
+        setMessage('Error saving changes: ' + error.message);
+        setTimeout(() => setMessage(''), 3000);
+      }
     }
 
     // Clear selection
@@ -333,8 +370,28 @@ const Procedure = () => {
 
   return (
     <div className="card">
-      <h2>96-Well Plate Design</h2>
-      <p>Select a material from the table, then click or drag on wells to add it with the specified amount.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div>
+            <h2>96-Well Plate Design</h2>
+            <p>Select a material from the table, then click or drag on wells to add it with the specified amount. Changes are automatically saved.</p>
+          </div>
+          <button 
+            className="btn btn-secondary" 
+            onClick={() => setShowHelpModal(true)}
+            style={{ 
+              padding: '8px 12px', 
+              fontSize: '14px',
+              backgroundColor: '#17a2b8',
+              borderColor: '#17a2b8',
+              color: 'white'
+            }}
+            title="Help"
+          >
+            ?
+          </button>
+        </div>
+      </div>
 
       {message && (
         <div className={`alert ${message.includes('Error') ? 'alert-error' : 'alert-success'}`}>
@@ -342,11 +399,7 @@ const Procedure = () => {
         </div>
       )}
 
-      <div style={{ marginBottom: '20px' }}>
-        <button className="btn btn-success" onClick={saveProcedure}>
-          Save Procedure
-        </button>
-      </div>
+
 
       {/* Split Screen Layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', height: '600px' }}>
@@ -498,20 +551,49 @@ const Procedure = () => {
         </div>
       </div>
 
-      {/* Instructions */}
-      <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '5px' }}>
-        <h4>Instructions:</h4>
-        <ul style={{ margin: '0', paddingLeft: '20px' }}>
-          <li>Click on a material row to select it</li>
-          <li>Click on wells to select them individually</li>
-          <li>Click on row letters (A-H) to select entire rows</li>
-          <li>Click on column numbers (1-12) to select entire columns</li>
-          <li>Hold Ctrl/Cmd and click to select multiple rows/columns</li>
-          <li>Hold Ctrl/Cmd and click to select multiple wells</li>
-          <li>Click and drag to select contiguous wells</li>
-          <li>Enter the amount in μmol and click "Add to wells"</li>
-        </ul>
-      </div>
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>96-Well Plate Help</h3>
+              <button className="modal-close" onClick={() => setShowHelpModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <h4>How to use the 96-Well Plate:</h4>
+              <ul style={{ paddingLeft: '20px', lineHeight: '1.6' }}>
+                <li><strong>Select Material:</strong> Click on a material row in the table to select it for dispensing.</li>
+                <li><strong>Select Wells:</strong> Click on individual wells to select them, or use the following methods:</li>
+                <ul style={{ paddingLeft: '20px', marginTop: '5px' }}>
+                  <li>Click on row letters (A-H) to select entire rows</li>
+                  <li>Click on column numbers (1-12) to select entire columns</li>
+                  <li>Hold Ctrl/Cmd and click to select multiple rows/columns</li>
+                  <li>Hold Ctrl/Cmd and click to select multiple individual wells</li>
+                  <li>Click and drag to select contiguous wells</li>
+                  <li>Click "ALL" to select all wells</li>
+                </ul>
+                <li><strong>Add Material:</strong> Enter the amount in μmol and click "Add to wells" to dispense the selected material.</li>
+                <li><strong>Remove Material:</strong> Click "Remove from wells" to remove the selected material from all selected wells.</li>
+                <li><strong>View Contents:</strong> Right-click on any well to view its contents in a modal.</li>
+                <li><strong>Auto-save:</strong> All changes are automatically saved to the backend.</li>
+              </ul>
+              <h4>Tips:</h4>
+              <ul style={{ paddingLeft: '20px', lineHeight: '1.6' }}>
+                <li>Selected wells are highlighted in blue</li>
+                <li>Wells with content are highlighted in green</li>
+                <li>Use Ctrl/Cmd for multi-selection operations</li>
+                <li>Drag operations work for contiguous well selection</li>
+                <li>Total amounts are calculated and displayed in the materials table</li>
+              </ul>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowHelpModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Well Contents Modal */}
       {showWellModal && clickedWell && (

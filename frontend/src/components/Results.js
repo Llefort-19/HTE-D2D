@@ -1,308 +1,231 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { useToast } from "./ToastContext";
 
 const Results = () => {
-  const [results, setResults] = useState([]);
-  const [analyticalData, setAnalyticalData] = useState([]);
-  const [procedure, setProcedure] = useState([]);
-  const [message, setMessage] = useState('');
-  const [exporting, setExporting] = useState(false);
+  const [analyticalData, setAnalyticalData] = useState(null);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
-  // Generate 96 wells (8 rows x 12 columns)
-  const wells = [];
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-  const columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-  
-  for (let row of rows) {
-    for (let col of columns) {
-      wells.push(`${row}${col}`);
-    }
-  }
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
-    loadResults();
     loadAnalyticalData();
-    loadProcedure();
+    
+    // Listen for help events from header
+    const handleHelpEvent = (event) => {
+      if (event.detail.tabId === 'results') {
+        setShowHelpModal(true);
+      }
+    };
+    
+    window.addEventListener('showHelp', handleHelpEvent);
+    
+    return () => {
+      window.removeEventListener('showHelp', handleHelpEvent);
+    };
   }, []);
-
-  const loadResults = async () => {
-    try {
-      const response = await axios.get('/api/experiment/results');
-      setResults(response.data || []);
-    } catch (error) {
-      console.error('Error loading results:', error);
-    }
-  };
 
   const loadAnalyticalData = async () => {
     try {
-      const response = await axios.get('/api/experiment/analytical');
-      setAnalyticalData(response.data || []);
+      const response = await axios.get("/api/experiment/analytical");
+      const data = response.data || {};
+      
+      // Get the most recent uploaded file data
+      if (data.uploadedFiles && data.uploadedFiles.length > 0) {
+        // Get the most recent upload (last in the array)
+        const mostRecentUpload = data.uploadedFiles[data.uploadedFiles.length - 1];
+        setAnalyticalData(mostRecentUpload);
+      } else if (data.currentUpload) {
+        // Fallback for old format
+        setAnalyticalData(data.currentUpload);
+      }
     } catch (error) {
-      console.error('Error loading analytical data:', error);
-    }
-  };
-
-  const loadProcedure = async () => {
-    try {
-      const response = await axios.get('/api/experiment/procedure');
-      setProcedure(response.data || []);
-    } catch (error) {
-      console.error('Error loading procedure:', error);
-    }
-  };
-
-  const getResultData = (wellId) => {
-    return results.find(r => r.well === wellId) || {
-      well: wellId,
-      id: '',
-      conversion_percent: '',
-      yield_percent: '',
-      selectivity_percent: ''
-    };
-  };
-
-  const updateResultData = (wellId, field, value) => {
-    const existingIndex = results.findIndex(r => r.well === wellId);
-    const data = getResultData(wellId);
-    const updatedData = { ...data, [field]: value };
-
-    if (existingIndex >= 0) {
-      setResults(prev => prev.map((r, i) => i === existingIndex ? updatedData : r));
-    } else {
-      setResults(prev => [...prev, updatedData]);
-    }
-  };
-
-  const saveResults = async () => {
-    try {
-      await axios.post('/api/experiment/results', results);
-      setMessage('Results saved successfully!');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      setMessage('Error saving results: ' + error.message);
-      setTimeout(() => setMessage(''), 3000);
+      console.error("Error loading analytical data:", error);
     }
   };
 
   const exportExperiment = async () => {
     try {
-      setExporting(true);
-      const response = await axios.post('/api/experiment/export', {}, {
-        responseType: 'blob'
-      });
-      
+      const response = await axios.post(
+        "/api/experiment/export",
+        {},
+        {
+          responseType: "blob",
+        },
+      );
+
       // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.setAttribute('download', `HTE_experiment_${new Date().toISOString().split('T')[0]}.xlsx`);
+      link.setAttribute(
+        "download",
+        `HTE_experiment_${new Date().toISOString().split("T")[0]}.xlsx`,
+      );
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
-      setMessage('Experiment exported successfully!');
-      setTimeout(() => setMessage(''), 3000);
+
+      showSuccess("Experiment exported successfully!");
     } catch (error) {
-      setMessage('Error exporting experiment: ' + error.message);
-      setTimeout(() => setMessage(''), 3000);
-    } finally {
-      setExporting(false);
+      showError("Error exporting experiment: " + error.message);
     }
   };
 
   const resetExperiment = async () => {
-    if (window.confirm('Are you sure you want to reset the entire experiment? This will clear all data.')) {
+    if (
+      window.confirm(
+        "Are you sure you want to reset the entire experiment? This will clear all data.",
+      )
+    ) {
       try {
-        await axios.post('/api/experiment/reset');
-        setResults([]);
-        setMessage('Experiment reset successfully!');
-        setTimeout(() => setMessage(''), 3000);
+        await axios.post("/api/experiment/reset");
+        setAnalyticalData(null);
+        showSuccess("Experiment reset successfully!");
       } catch (error) {
-        setMessage('Error resetting experiment: ' + error.message);
-        setTimeout(() => setMessage(''), 3000);
+        showError("Error resetting experiment: " + error.message);
       }
     }
-  };
-
-  const hasResults = (wellId) => {
-    const data = getResultData(wellId);
-    return Object.values(data).some(value => value && value !== '' && value !== wellId);
-  };
-
-  const getWellClass = (wellId) => {
-    let className = 'well';
-    if (hasResults(wellId)) {
-      className += ' has-content';
-    }
-    return className;
-  };
-
-  const getWellData = (wellId) => {
-    return procedure.find(p => p.well === wellId) || {};
-  };
-
-  const getAnalyticalData = (wellId) => {
-    return analyticalData.find(a => a.well === wellId) || {};
   };
 
   return (
     <div className="card">
       <h2>Results</h2>
-      <p>Calculate and record experiment results. Export data for ML model training.</p>
 
-      {message && (
-        <div className={`alert ${message.includes('Error') ? 'alert-error' : 'alert-success'}`}>
-          {message}
-        </div>
-      )}
-
-      <div style={{ marginBottom: '20px' }}>
-        <button className="btn btn-success" onClick={saveResults}>
-          Save Results
-        </button>
-        <button 
-          className="btn btn-secondary" 
+      <div style={{ marginBottom: "20px" }}>
+        <button
+          className="btn btn-success"
           onClick={exportExperiment}
-          disabled={exporting}
         >
-          {exporting ? 'Exporting...' : 'Export to Excel'}
+          Export to Excel
         </button>
         <button className="btn btn-secondary" onClick={resetExperiment}>
           Reset Experiment
         </button>
       </div>
 
-      {/* 96-Well Plate Grid */}
-      <div className="well-grid">
-        {wells.map(well => (
-          <div
-            key={well}
-            className={getWellClass(well)}
-            title={`Well ${well}`}
-          >
-            {well}
-          </div>
-        ))}
-      </div>
-
-      {/* Results Table */}
-      <div className="card" style={{ marginTop: '20px' }}>
-        <h3>Results Table</h3>
-        <p>Enter calculated results for each well. Use analytical data to calculate conversion, yield, and selectivity.</p>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Well</th>
-                <th>ID</th>
-                <th>Conversion (%)</th>
-                <th>Yield (%)</th>
-                <th>Selectivity (%)</th>
-                <th>Procedure Data</th>
-                <th>Analytical Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wells.map(well => {
-                const resultData = getResultData(well);
-                const procedureData = getWellData(well);
-                const analyticalData = getAnalyticalData(well);
-                
-                return (
-                  <tr key={well}>
-                    <td>
-                      <strong>{well}</strong>
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={resultData.id || ''}
-                        onChange={(e) => updateResultData(well, 'id', e.target.value)}
-                        style={{ width: '80px' }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        step="0.1"
-                        className="form-control"
-                        value={resultData.conversion_percent || ''}
-                        onChange={(e) => updateResultData(well, 'conversion_percent', e.target.value)}
-                        placeholder="%"
-                        style={{ width: '80px' }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        step="0.1"
-                        className="form-control"
-                        value={resultData.yield_percent || ''}
-                        onChange={(e) => updateResultData(well, 'yield_percent', e.target.value)}
-                        placeholder="%"
-                        style={{ width: '80px' }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        step="0.1"
-                        className="form-control"
-                        value={resultData.selectivity_percent || ''}
-                        onChange={(e) => updateResultData(well, 'selectivity_percent', e.target.value)}
-                        placeholder="%"
-                        style={{ width: '80px' }}
-                      />
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px', maxWidth: '200px' }}>
-                        {Object.keys(procedureData).filter(key => 
-                          key.includes('compound') && procedureData[key]
-                        ).map(key => (
-                          <div key={key}>
-                            {key.replace('_name', '')}: {procedureData[key]}
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: '12px', maxWidth: '200px' }}>
-                        {Object.keys(analyticalData).filter(key => 
-                          key.includes('area') && analyticalData[key]
-                        ).map(key => (
-                          <div key={key}>
-                            {key.replace('_area', '')}: {analyticalData[key]}
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div style={{ marginTop: '20px' }}>
-        <h3>Export Information</h3>
-        <p>The exported Excel file will contain the following sheets:</p>
-        <ul>
-          <li><strong>Context:</strong> Experiment metadata (author, date, project, etc.)</li>
-          <li><strong>Materials:</strong> All chemicals used with their properties</li>
-          <li><strong>Procedure:</strong> 96-well plate layout with compound quantities</li>
-          <li><strong>Analytical data (1):</strong> Chromatogram areas for each compound</li>
-          <li><strong>Results (1):</strong> Calculated conversion, yield, and selectivity</li>
-        </ul>
+      {/* Analytical Results Table */}
+      <div className="card" style={{ marginTop: "20px" }}>
+        <h3>Analytical Results</h3>
         
-        <p><strong>Note:</strong> This data format is compatible with the provided template and suitable for ML model training.</p>
+        {analyticalData ? (
+          <div>
+            <div style={{ marginBottom: "15px" }}>
+              <strong>File:</strong> {analyticalData.filename} | 
+              <strong>Uploaded:</strong> {new Date(analyticalData.upload_date).toLocaleString()} | 
+              <strong>Shape:</strong> {analyticalData.shape[0]} rows × {analyticalData.shape[1]} columns
+            </div>
+            
+            <div className="scrollable-table-container">
+              <table className="table table-striped">
+                <thead>
+                  <tr>
+                    {analyticalData.columns.map((column, index) => (
+                      <th key={index}>{column}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {analyticalData.data.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {analyticalData.columns.map((column, colIndex) => (
+                        <td key={colIndex}>{row[column]}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
+            <p>No analytical data uploaded yet.</p>
+            <p>Upload a file in the Analytical Data tab to view results here.</p>
+          </div>
+        )}
       </div>
+
+      {/* Help Modal */}
+      {showHelpModal && (
+        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "800px", width: "95%" }}>
+            <div className="modal-header">
+              <h3>Results Help</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowHelpModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body" style={{ textAlign: "left" }}>
+              <h4>Results Overview:</h4>
+              <p>View analytical results from uploaded UPLC data and export the complete experiment.</p>
+              
+              <h4>Results Features:</h4>
+              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
+                <li>
+                  <strong>Analytical Data Display:</strong> View uploaded UPLC results in a table format.
+                </li>
+                <li>
+                  <strong>File Information:</strong> See filename, upload date, and data dimensions.
+                </li>
+                <li>
+                  <strong>Data Table:</strong> Browse through all uploaded analytical data.
+                </li>
+                <li>
+                  <strong>Export Functionality:</strong> Generate comprehensive Excel reports.
+                </li>
+              </ul>
+              
+              <h4>Data Structure:</h4>
+              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
+                <li>Well: 96-well plate position (A1-H12)</li>
+                <li>Sample ID: Unique identifier for each sample</li>
+                <li>Compound Areas: Chromatogram peak areas for each compound</li>
+                <li>Data is organized according to the analytical template format</li>
+              </ul>
+              
+              <h4>Export Information:</h4>
+              <p>The exported Excel file will contain the following sheets:</p>
+              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
+                <li>
+                  <strong>Context:</strong> Experiment metadata (author, date, project, etc.)
+                </li>
+                <li>
+                  <strong>Materials:</strong> All chemicals used with their properties
+                </li>
+                <li>
+                  <strong>Procedure:</strong> 96-well plate layout with compound quantities
+                </li>
+                <li>
+                  <strong>Analytical Data:</strong> UPLC results from uploaded file
+                </li>
+                <li>
+                  <strong>Results:</strong> Calculated conversion, yield, and selectivity
+                </li>
+              </ul>
+
+              <p>
+                <strong>Note:</strong> This data format is compatible with the provided template and suitable for ML model training.
+              </p>
+              
+              <h4>Workflow:</h4>
+              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
+                <li>1. Upload analytical data in the Analytical Data tab</li>
+                <li>2. View results in this tab</li>
+                <li>3. Export complete experiment to Excel</li>
+                <li>4. Use exported data for analysis and ML training</li>
+              </ul>
+            </div>
+            <div className="modal-footer">
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Results; 
+export default Results;

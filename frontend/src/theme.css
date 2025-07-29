@@ -1,0 +1,993 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+/* =====================================================
+   Global Theme Tokens – Define once, reuse everywhere
+   ===================================================== */
+:root {
+  /* Brand palette */
+  --color-primary: #2b7a78; /* teal */
+  --color-secondary: #17252a; /* dark slate */
+  --color-accent: #3aafa9; /* mint */
+
+  /* UI neutrals */
+  --color-background: #f8f9fa; /* light grey */
+  --color-surface: #ffffff; /* cards, modals */
+  --color-border: #e0e0e0; /* light border */
+  --color-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Text */
+  --color-text-primary: #212529;
+  --color-text-secondary: #555;
+  --color-heading: #17252a;
+
+  /* Semantic states */
+  --color-success: #198754;
+  --color-danger: #dc3545;
+  --color-warning: #ffc107;
+  --color-info: #0dcaf0;
+
+  /* Sizing & radius */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.12);
+
+  /* Typography scale */
+  --font-base: 16px;
+  --h1: 2rem;
+  --h2: 1.5rem;
+  --h3: 1.25rem;
+  --h4: 1.125rem;
+  --text-sm: 0.875rem;
+
+  /* Spacing tokens */
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+
+  /* Breakpoints */
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;
+  --breakpoint-xl: 1200px;
+
+  /* Header tokens */
+  --header-height: 72px; /* +8px breathing room */
+  --nav-font-size: 1.125rem; /* 18px */
+  --nav-hover-bg: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  --nav-underline: 3px solid var(--color-primary);
+}
+
+/* Dark‑mode auto support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #121212;
+    --color-surface: #1e1e1e;
+    --color-border: #2a2a2a;
+    --color-text-primary: #f8f9fa;
+    --color-text-secondary: #cfcfcf;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Manual dark mode support */
+:root[data-theme="dark"] {
+  --color-background: #121212;
+  --color-surface: #1e1e1e;
+  --color-border: #2a2a2a;
+  --color-text-primary: #f8f9fa;
+  --color-text-secondary: #cfcfcf;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* =====================================================
+   Base Element Styles
+   ===================================================== */
+html {
+  font-size: var(--font-base);
+}
+body {
+  margin: 0;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--color-heading);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: var(--h1);
+}
+h2 {
+  font-size: var(--h2);
+}
+h3 {
+  font-size: var(--h3);
+}
+h4 {
+  font-size: var(--h4);
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--color-text-secondary);
+}
+
+/* Links */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* =====================================================
+   Layout Helpers
+   ===================================================== */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-sm);
+}
+
+/* =====================================================
+   Global Header & Navigation
+   ===================================================== */
+
+/* Top App Bar (persistent header) */
+.top-app-bar {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  height: var(--header-height);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.app-bar-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  padding: 0 var(--space-md);
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: var(--space-lg);
+}
+
+.app-bar-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.text-logo {
+  display: flex;
+  align-items: center;
+}
+
+.logo-text {
+  font-size: var(--h2);
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.logo-text::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.text-logo:hover .logo-text::before {
+  opacity: 1;
+}
+
+.text-logo:hover .logo-text {
+  transform: scale(1.05);
+}
+
+.reset-btn {
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-warning);
+  color: var(--color-text-primary);
+  border: 2px solid var(--color-warning);
+  transition: all 0.2s ease;
+  margin-left: var(--space-sm);
+}
+
+.reset-btn:hover {
+  background-color: #e0a800;
+  border-color: #e0a800;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.reset-btn:active {
+  transform: translateY(0);
+}
+
+.app-bar-nav {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: var(--space-xl);
+  flex: 1;
+  justify-content: center;
+}
+
+.app-bar-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.nav-link {
+  position: relative;
+  font-size: var(--nav-font-size);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  padding: 0 1.25rem;
+  min-height: 48px; /* WCAG target */
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.nav-link:hover {
+  background: var(--nav-hover-bg);
+}
+
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  transition: height 0.15s ease;
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+  height: 3px; /* var(--nav-underline) */
+  background: var(--color-primary);
+}
+
+/* =====================================================
+   Card Component
+   ===================================================== */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-lg);
+  margin: var(--space-sm) 0;
+}
+
+.card-header {
+  margin-bottom: var(--space-lg);
+}
+
+.card-title {
+  color: var(--color-primary);
+  margin-bottom: var(--space-xs);
+  font-weight: 600;
+}
+
+.card-subtitle {
+  color: var(--color-text-secondary);
+  margin-bottom: 0;
+  font-size: var(--text-sm);
+}
+
+/* =====================================================
+   Form Components
+   ===================================================== */
+.form-grid {
+  display: grid;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.form-group {
+  margin-bottom: var(--space-md);
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+}
+
+.form-control {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--color-primary) 25%, transparent 75%);
+}
+
+.form-control::placeholder {
+  color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.form-actions {
+  margin-top: var(--space-lg);
+  display: flex;
+  justify-content: flex-start;
+}
+
+.save-context-btn {
+  width: 100%;
+  padding: var(--space-sm) var(--space-lg);
+  font-weight: 600;
+}
+
+/* =====================================================
+   Experiment Context Specific Styles
+   ===================================================== */
+.experiment-context-card {
+  max-width: 100%;
+}
+
+.experiment-context-form {
+  margin-top: var(--space-md);
+}
+
+/* Responsive Grid Layout */
+@media (min-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .save-context-btn {
+    width: auto;
+    min-width: 200px;
+  }
+}
+
+/* Mobile-first responsive adjustments */
+@media (max-width: 767px) {
+  .container {
+    padding: 0 var(--space-xs);
+  }
+
+  .card {
+    padding: var(--space-md);
+    margin: var(--space-xs) 0;
+  }
+
+  .form-grid {
+    gap: var(--space-sm);
+  }
+
+  .form-group {
+    margin-bottom: var(--space-sm);
+  }
+
+  .form-actions {
+    margin-top: var(--space-md);
+  }
+}
+
+/* =====================================================
+   Buttons
+   ===================================================== */
+.btn {
+  display: inline-block;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+  text-align: center;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 85%, #000 15%);
+}
+
+.btn-secondary {
+  background: var(--color-secondary);
+  border-color: var(--color-secondary);
+  color: #fff;
+}
+
+.btn-success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #fff;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.btn-warning {
+  background: #8b7355;
+  border-color: #8b7355;
+  color: #fff;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: color-mix(in srgb, #8b7355 85%, #000 15%);
+}
+
+/* =====================================================
+   Tables
+   ===================================================== */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.table th,
+.table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.table thead th {
+  background: var(--color-background);
+  font-weight: 600;
+  color: var(--color-heading);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table tbody tr:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-primary) 5%,
+    var(--color-background) 95%
+  );
+}
+
+/* =====================================================
+   Responsive Grid Layouts
+   ===================================================== */
+.grid-cols-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.procedure-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+/* =====================================================
+   Materials Component Styles
+   ===================================================== */
+.search-input-section,
+.search-results-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.search-results-container {
+  height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+}
+
+.search-result-item {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.search-result-item:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-primary) 5%,
+    var(--color-background) 95%
+  );
+}
+
+.search-result-item.selected-result {
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 10%,
+    var(--color-background) 90%
+  );
+  border-left: 3px solid var(--color-accent);
+}
+
+.search-result-item.existing-material {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.materials-table-section {
+  margin-top: var(--space-lg);
+}
+
+.materials-table-container {
+  overflow-x: auto;
+}
+
+/* =====================================================
+   96-Well Plate Styles
+   ===================================================== */
+.materials-section,
+.plate-section {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.materials-table-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.amount-input-section {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--color-background);
+  border-radius: var(--radius-sm);
+}
+
+.amount-controls {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.amount-controls .form-control {
+  width: 150px;
+}
+
+.selected-wells-info {
+  color: var(--color-text-secondary);
+  margin-top: var(--space-xs);
+  display: block;
+}
+
+.plate-container {
+  overflow-x: auto;
+}
+
+.column-headers {
+  display: grid;
+  grid-template-columns: 40px repeat(12, 1fr);
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.plate-grid {
+  display: grid;
+  grid-template-columns: 40px repeat(12, 1fr);
+  gap: 2px;
+}
+
+.plate-row {
+  display: contents;
+}
+
+.header-cell {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  padding: var(--space-xs);
+  text-align: center;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.header-cell:hover {
+  background: color-mix(
+    in srgb,
+    var(--color-primary) 10%,
+    var(--color-background) 90%
+  );
+}
+
+.corner-cell {
+  background: var(--color-primary);
+  color: white;
+  font-weight: 700;
+}
+
+.well {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  background: var(--color-surface);
+}
+
+.well:hover {
+  outline: 2px solid var(--color-accent);
+  cursor: pointer;
+}
+
+.well.selected {
+  background: color-mix(
+    in srgb,
+    var(--color-accent) 20%,
+    var(--color-surface) 80%
+  );
+  border-color: var(--color-accent);
+}
+
+.well.has-content {
+  background: color-mix(
+    in srgb,
+    var(--color-success) 15%,
+    var(--color-surface) 85%
+  );
+  border-color: var(--color-success);
+}
+
+.well-content {
+  font-size: 8px;
+  line-height: 1;
+  text-align: center;
+  word-break: break-all;
+}
+
+/* =====================================================
+   Tabs / Nav (Legacy - being replaced)
+   ===================================================== */
+.tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 2px solid var(--color-border);
+  margin-bottom: 1.5rem;
+}
+
+.tab-button {
+  padding: 0.75rem 0;
+  position: relative;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tab-button.active {
+  color: var(--color-primary);
+}
+
+.tab-button.active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--color-primary);
+}
+
+/* =====================================================
+   Modal Overlay
+   ===================================================== */
+.modal-overlay {
+  background: var(--color-overlay);
+}
+
+.modal-content {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+/* =====================================================
+   Utility classes
+   ===================================================== */
+.text-center {
+  text-align: center;
+}
+.mt-0 {
+  margin-top: 0;
+}
+.mb-0 {
+  margin-bottom: 0;
+}
+
+/* =====================================================
+   SDF Upload and Reaction Display Styles
+   ===================================================== */
+.reaction-section {
+  margin-top: var(--space-lg);
+  padding: var(--space-md);
+  background: var(--color-background);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.molecules-section {
+  margin-bottom: var(--space-lg);
+}
+
+.molecules-section h4 {
+  color: var(--color-heading);
+  margin-bottom: var(--space-sm);
+  font-size: var(--h4);
+}
+
+.molecules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.molecule-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  text-align: center;
+  transition: box-shadow 0.15s ease;
+}
+
+.molecule-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.molecule-image {
+  margin-bottom: var(--space-sm);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 120px;
+}
+
+.molecule-image img {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: white;
+}
+
+.molecule-info {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.molecule-info strong {
+  color: var(--color-text-primary);
+}
+
+.summary-table {
+  margin-top: var(--space-lg);
+}
+
+.summary-table h4 {
+  color: var(--color-heading);
+  margin-bottom: var(--space-sm);
+  font-size: var(--h4);
+}
+
+.summary-table .table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-table .table th,
+.summary-table .table td {
+  padding: var(--space-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.summary-table .table th {
+  background: var(--color-background);
+  font-weight: 600;
+  color: var(--color-heading);
+}
+
+.summary-table .table td {
+  color: var(--color-text-secondary);
+  font-family: 'Courier New', monospace;
+  font-size: var(--text-sm);
+}
+
+/* File upload styling */
+input[type="file"] {
+  padding: var(--space-sm);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+input[type="file"]:hover {
+  border-color: var(--color-primary);
+}
+
+input[type="file"]:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(43, 122, 120, 0.1);
+}
+
+/* =====================================================
+   Responsive Breakpoints
+   ===================================================== */
+@media (max-width: 640px) {
+  :root {
+    --header-height: 64px; /* mobile, per Material */
+  }
+  
+  .molecules-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .molecule-card {
+    padding: var(--space-sm);
+  }
+  
+  .molecule-image img {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 767px) {
+  .procedure-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+
+  .plate-container {
+    overflow-x: auto;
+  }
+
+  .app-bar-nav {
+    gap: var(--space-sm);
+  }
+
+  .nav-link {
+    min-width: auto;
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--text-sm);
+  }
+
+  .amount-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .amount-controls .form-control {
+    width: 100%;
+  }
+}
+
+@media (max-width: 639px) {
+  .save-context-btn {
+    width: 100%;
+  }
+}
+
+/* =====================================================
+   End of theme file   ================================= */

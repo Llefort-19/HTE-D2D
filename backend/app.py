@@ -14,6 +14,7 @@ from rdkit.Chem import AllChem
 from PIL import Image
 import io
 import base64
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -28,33 +29,233 @@ current_experiment = {
     'results': []
 }
 
-def generate_molecule_image(smiles_string, image_size=(300, 300)):
+def normalize_2d_coordinates(mol, target_bond_length=1.5):
     """
-    Generate a 2D molecule image from a SMILES string.
+    Normalize 2D coordinates of an RDKit molecule to ensure consistent bond lengths.
     
     Args:
-        smiles_string (str): The SMILES string representation of the molecule
-        image_size (tuple): Size of the output image (width, height)
+        mol: RDKit Mol object
+        target_bond_length (float): Target bond length in Angstroms (default: 1.5)
     
     Returns:
-        str: Base64 encoded image data or None if SMILES is invalid
+        RDKit Mol object with normalized coordinates
     """
-    mol = Chem.MolFromSmiles(smiles_string)
-    if mol is None:
+    try:
+        if mol is None or mol.GetNumConformers() == 0:
+            return mol
+        
+        # Get the 2D conformer
+        conf = mol.GetConformer()
+        
+        # Calculate current average bond length
+        total_bond_length = 0.0
+        num_bonds = 0
+        
+        for bond in mol.GetBonds():
+            begin_idx = bond.GetBeginAtomIdx()
+            end_idx = bond.GetEndAtomIdx()
+            
+            begin_pos = conf.GetAtomPosition(begin_idx)
+            end_pos = conf.GetAtomPosition(end_idx)
+            
+            # Calculate Euclidean distance
+            bond_length = ((begin_pos.x - end_pos.x) ** 2 + 
+                          (begin_pos.y - end_pos.y) ** 2) ** 0.5
+            total_bond_length += bond_length
+            num_bonds += 1
+        
+        if num_bonds == 0:
+            return mol
+        
+        # Calculate current average bond length
+        current_avg_bond_length = total_bond_length / num_bonds
+        
+        # Calculate scaling factor
+        if current_avg_bond_length > 0:
+            scale_factor = target_bond_length / current_avg_bond_length
+        else:
+            scale_factor = 1.0
+        
+        # Apply scaling to all atom positions
+        for atom_idx in range(mol.GetNumAtoms()):
+            pos = conf.GetAtomPosition(atom_idx)
+            new_pos = Chem.rdGeometry.Point3D(
+                pos.x * scale_factor,
+                pos.y * scale_factor,
+                pos.z
+            )
+            conf.SetAtomPosition(atom_idx, new_pos)
+        
+        return mol
+    except Exception as e:
+        # Return original molecule if normalization fails
+        return mol
+
+def prepare_molecule(smiles, target_bond_length=1.5):
+    """Parse SMILES, generate 2D coords, normalize bond lengths."""
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            return None
+        try:
+            AllChem.Compute2DCoords(mol, canonOrient=True)
+        except Exception:
+            AllChem.Compute2DCoords(mol)
+        mol = normalize_2d_coordinates(mol, target_bond_length)
+        return mol
+    except Exception as e:
+        print(f"[prepare_molecule] Error: {e}")
         return None
+
+def render_molecule_svg(mol, image_size):
+    """Render molecule to SVG using RDKit MolDraw2DSVG."""
+    try:
+        drawer = Draw.MolDraw2DSVG(image_size[0], image_size[1])
+        drawer.DrawMolecule(mol)
+        drawer.FinishDrawing()
+        return drawer.GetDrawingText()
+    except Exception as e:
+        print(f"[render_molecule_svg] Error: {e}")
+        return None
+
+def svg_to_png(svg_data):
+    """Convert SVG data to PNG bytes using cairosvg."""
+    try:
+        import cairosvg
+        return cairosvg.svg2png(bytestring=svg_data.encode('utf-8'))
+    except Exception as e:
+        print(f"[svg_to_png] Error: {e}")
+        return None
+
+def render_molecule_png(mol, image_size):
+    """Render molecule to PNG using RDKit's MolToImage."""
+    try:
+        return Draw.MolToImage(
+            mol,
+            size=image_size,
+            kekulize=True,
+            wedgeBonds=True,
+            fitImage=True,
+            useCoords=True
+        )
+    except Exception as e:
+        print(f"[render_molecule_png] Error: {e}")
+        try:
+            return Draw.MolToImage(
+                mol,
+                size=image_size,
+                kekulize=True,
+                wedgeBonds=True,
+                fitImage=True
+            )
+        except Exception as e2:
+            print(f"[render_molecule_png fallback] Error: {e2}")
+            return None
+
+def image_to_base64(img_or_bytes):
+    """Convert PIL.Image or PNG bytes to base64 string."""
+    import base64
+    import io
+    try:
+        if hasattr(img_or_bytes, 'save'):
+            buffer = io.BytesIO()
+            img_or_bytes.save(buffer, format='PNG')
+            img_bytes = buffer.getvalue()
+        else:
+            img_bytes = img_or_bytes
+        return base64.b64encode(img_bytes).decode()
+    except Exception as e:
+        print(f"[image_to_base64] Error: {e}")
+        return None
+
+def blank_png_base64(size=(300, 300)):
+    from PIL import Image
+    img = Image.new("RGBA", size, (255, 255, 255, 0))
+    return image_to_base64(img)
+
+def generate_molecule_image(smiles_string, image_size=(300, 300)):
+    """
+    Generate a 2D molecule image from a SMILES string with consistent rendering.
+    Returns: base64 encoded PNG or a blank PNG if all rendering fails.
+    """
+    try:
+        mol = prepare_molecule(smiles_string)
+        if mol is None:
+            return blank_png_base64(image_size)
+        # Try SVG rendering first
+        svg_data = render_molecule_svg(mol, image_size)
+        if svg_data:
+            png_bytes = svg_to_png(svg_data)
+            if png_bytes:
+                b64 = image_to_base64(png_bytes)
+                if b64:
+                    return b64
+        # Fallback to PNG rendering
+        img = render_molecule_png(mol, image_size)
+        if img:
+            b64 = image_to_base64(img)
+            if b64:
+                return b64
+        # Final fallback: blank image
+        return blank_png_base64(image_size)
+    except Exception as e:
+        print(f"[generate_molecule_image] Error: {e}")
+        return blank_png_base64(image_size)
+
+def parse_sdf_file(sdf_content):
+    """
+    Parse SDF file content and extract molecules using RDKit's SDF reader.
     
-    # Generate 2D coordinates
-    AllChem.Compute2DCoords(mol)
+    Args:
+        sdf_content (str): The content of the SDF file
     
-    # Create image
-    img = Draw.MolToImage(mol, size=image_size)
+    Returns:
+        list: List of molecules with their SMILES and images
+    """
+    molecules = []
     
-    # Convert to base64
-    buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
-    img_str = base64.b64encode(buffer.getvalue()).decode()
+    try:
+        # Create a temporary file to use with SDMolSupplier
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.sdf', delete=False) as tmp_file:
+            tmp_file.write(sdf_content)
+            tmp_file_path = tmp_file.name
+        
+        # Read molecules from the temporary file
+        suppl = Chem.SDMolSupplier(tmp_file_path)
+        
+        for i, mol in enumerate(suppl):
+            if mol is not None:
+                try:
+                    # Get molecule name
+                    mol_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"Molecule_{i+1}"
+                    
+                    # Convert to SMILES
+                    smiles = Chem.MolToSmiles(mol)
+                    
+                    # Generate image
+                    image_data = generate_molecule_image(smiles, (200, 200))
+                    
+                    molecules.append({
+                        'name': mol_name,
+                        'smiles': smiles,
+                        'image': image_data
+                    })
+                    
+                except Exception as e:
+                    continue
+            else:
+                continue
+        
+        # Clean up temporary file
+        try:
+            os.unlink(tmp_file_path)
+        except Exception:
+            pass
+        
+    except Exception as e:
+        pass
     
-    return img_str
+    return molecules
 
 def load_inventory():
     """Load inventory from Excel file"""
@@ -91,7 +292,8 @@ def search_inventory():
         main_results = inventory_data[
             inventory_data['chemical_name'].str.lower().str.contains(query, na=False) |
             inventory_data['common_name'].str.lower().str.contains(query, na=False) |
-            inventory_data['cas_number'].astype(str).str.lower().str.contains(query, na=False)
+            inventory_data['cas_number'].astype(str).str.lower().str.contains(query, na=False) |
+            inventory_data['smiles'].astype(str).str.lower().str.contains(query, na=False)
         ]
     
     # Private inventory
@@ -103,7 +305,8 @@ def search_inventory():
             private_results = private_df[
                 private_df['chemical_name'].str.lower().str.contains(query, na=False) |
                 private_df['common_name'].str.lower().str.contains(query, na=False) |
-                private_df['cas_number'].astype(str).str.lower().str.contains(query, na=False)
+                private_df['cas_number'].astype(str).str.lower().str.contains(query, na=False) |
+                private_df['smiles'].astype(str).str.lower().str.contains(query, na=False)
             ]
         except Exception:
             pass
@@ -169,6 +372,29 @@ def add_to_private_inventory():
     df.to_excel(private_path, index=False)
     return jsonify({'message': 'Added'}), 200
 
+@app.route('/api/inventory/private/check', methods=['POST'])
+def check_private_inventory():
+    """Check if a chemical exists in private inventory by name, alias, CAS, or SMILES"""
+    chemical = request.json
+    private_path = os.path.join(os.path.dirname(__file__), '..', 'Private_Inventory.xlsx')
+    
+    if not os.path.exists(private_path):
+        return jsonify({'exists': False}), 200
+    
+    try:
+        df = pd.read_excel(private_path)
+        
+        # Check for matches by name, alias, CAS, or SMILES
+        name_match = df['chemical_name'].str.lower() == chemical.get('name', '').lower()
+        alias_match = df['common_name'].str.lower() == chemical.get('alias', '').lower()
+        cas_match = df['cas_number'].astype(str) == str(chemical.get('cas', ''))
+        smiles_match = df['smiles'].astype(str).str.lower() == str(chemical.get('smiles', '')).lower()
+        
+        exists = (name_match | alias_match | cas_match | smiles_match).any()
+        return jsonify({'exists': bool(exists)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/experiment/context', methods=['GET', 'POST'])
 def experiment_context():
     """Get or update experiment context"""
@@ -208,10 +434,223 @@ def experiment_analytical():
     global current_experiment
     
     if request.method == 'POST':
-        current_experiment['analytical_data'] = request.json
-        return jsonify({'message': 'Analytical data updated'})
+        # Handle selected compounds update
+        if 'selectedCompounds' in request.json:
+            if 'analytical_data' not in current_experiment:
+                current_experiment['analytical_data'] = {}
+            current_experiment['analytical_data']['selectedCompounds'] = request.json['selectedCompounds']
+            return jsonify({'message': 'Selected compounds updated'})
+        else:
+            # Handle other analytical data updates
+            current_experiment['analytical_data'] = request.json
+            return jsonify({'message': 'Analytical data updated'})
     
-    return jsonify(current_experiment['analytical_data'])
+    # Return the analytical data structure that frontend expects
+    analytical_data = current_experiment.get('analytical_data', {})
+    if isinstance(analytical_data, list):
+        # If it's a list (old format), convert to new format
+        return jsonify({
+            'selectedCompounds': [],
+            'uploadedFiles': analytical_data
+        })
+    else:
+        # Return the analytical data as is
+        return jsonify(analytical_data)
+
+@app.route('/api/experiment/analytical/template', methods=['POST'])
+def export_analytical_template():
+    try:
+        data = request.get_json()
+        compounds = data.get('compounds', [])
+        
+        if not compounds:
+            return jsonify({'error': 'No compounds provided'}), 400
+        
+        # Create a new workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Analytical Data"
+        
+        # Add headers - Well, Sample ID, then compound columns
+        headers = ['Well', 'Sample ID']
+        for i, compound in enumerate(compounds, 1):
+            headers.extend([f'Name_{i}', f'Area_{i}'])
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+        
+        # Generate 96 wells (8 rows x 12 columns)
+        rows = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        columns = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+        
+        # Get ELN number from context for sample IDs
+        context = current_experiment.get('context', {})
+        eln_number = context.get('eln_number', 'ELN-001')
+        
+        row_num = 2
+        for row in rows:
+            for col in columns:
+                well = f"{row}{col}"
+                sample_id = f"{eln_number}-{well}"
+                
+                # Add well and sample ID
+                ws.cell(row=row_num, column=1, value=well)
+                ws.cell(row=row_num, column=2, value=sample_id)
+                
+                # Add compound name and area columns
+                for compound_idx, compound in enumerate(compounds):
+                    # Cpd_(number)_Name column
+                    ws.cell(row=row_num, column=3 + (compound_idx * 2), value=compound)
+                    # Cmpd_(number)_area column (empty for user to fill)
+                    ws.cell(row=row_num, column=4 + (compound_idx * 2), value="")
+                
+                row_num += 1
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Save to temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+            wb.save(tmp_file.name)
+            tmp_file_path = tmp_file.name
+        
+        # Read the file and return it
+        with open(tmp_file_path, 'rb') as f:
+            file_content = f.read()
+        
+        # Clean up temporary file
+        os.unlink(tmp_file_path)
+        
+        return send_file(
+            io.BytesIO(file_content),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'Analytical_Template_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        )
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/experiment/analytical/upload', methods=['POST'])
+def upload_analytical_data():
+    try:
+        print("Upload endpoint called")
+        
+        if 'file' not in request.files:
+            print("No file in request.files")
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        print(f"File received: {file.filename}")
+        
+        if file.filename == '':
+            print("Empty filename")
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Check file extension
+        allowed_extensions = {'.xlsx', '.xls', '.csv'}
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        print(f"File extension: {file_ext}")
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Read the file based on its type
+        try:
+            print("Attempting to read file")
+            if file_ext == '.csv':
+                df = pd.read_csv(file)
+            else:  # Excel files
+                df = pd.read_excel(file)
+            print(f"File read successfully. Shape: {df.shape}")
+        except Exception as e:
+            print(f"Error reading file: {str(e)}")
+            return jsonify({'error': f'Error reading file: {str(e)}'}), 400
+        
+        # Basic validation - check if file has expected structure
+        if len(df.columns) < 2:
+            print(f"File has insufficient columns: {len(df.columns)}")
+            return jsonify({'error': 'File must have at least 2 columns (Well and Sample ID)'}), 400
+        
+        # Validate area columns (columns containing "Area_" in their names)
+        area_columns = [col for col in df.columns if col.startswith('Area_')]
+        print(f"Found area columns: {area_columns}")
+        
+        # Check if area columns contain only numerical data
+        invalid_area_columns = []
+        for col in area_columns:
+            try:
+                # Convert to numeric, coercing errors to NaN
+                numeric_col = pd.to_numeric(df[col], errors='coerce')
+                # Check if there are any NaN values (indicating non-numeric data)
+                if numeric_col.isna().any():
+                    invalid_area_columns.append(col)
+                    print(f"Column {col} contains non-numeric data")
+            except Exception as e:
+                invalid_area_columns.append(col)
+                print(f"Error validating column {col}: {str(e)}")
+        
+        if invalid_area_columns:
+            return jsonify({
+                'error': f'Area columns must contain only numerical data. Invalid columns: {", ".join(invalid_area_columns)}'
+            }), 400
+        
+        print(f"Current experiment state before upload: {list(current_experiment.keys())}")
+        
+        # Store the uploaded data in the current experiment
+        uploaded_data = {
+            'filename': file.filename,
+            'upload_date': datetime.now().isoformat(),
+            'data': df.to_dict('records'),
+            'columns': df.columns.tolist(),
+            'shape': df.shape,
+            'area_columns': area_columns  # Add area columns information
+        }
+        
+        # Add to analytical data without overwriting existing data
+        if 'analytical_data' not in current_experiment:
+            current_experiment['analytical_data'] = {}
+        
+        # If analytical_data is a list (old format), convert it to new format
+        if isinstance(current_experiment['analytical_data'], list):
+            old_uploads = current_experiment['analytical_data']
+            current_experiment['analytical_data'] = {
+                'selectedCompounds': [],
+                'uploadedFiles': old_uploads
+            }
+        
+        if 'uploadedFiles' not in current_experiment['analytical_data']:
+            current_experiment['analytical_data']['uploadedFiles'] = []
+        
+        current_experiment['analytical_data']['uploadedFiles'].append(uploaded_data)
+        
+        print(f"Upload successful. Current experiment keys: {list(current_experiment.keys())}")
+        
+        return jsonify({
+            'message': 'File uploaded successfully',
+            'filename': file.filename,
+            'rows': len(df),
+            'columns': len(df.columns),
+            'area_columns': area_columns
+        }), 200
+        
+    except Exception as e:
+        print(f"Unexpected error in upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/api/experiment/results', methods=['GET', 'POST'])
 def experiment_results():
@@ -479,6 +918,54 @@ def get_molecule_image():
         'size': {'width': width, 'height': height}
     })
 
+@app.route('/api/upload/sdf', methods=['POST'])
+def upload_sdf():
+    """Upload and parse SDF file"""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.lower().endswith('.sdf'):
+        return jsonify({'error': 'File must be in SDF format'}), 400
+    
+    try:
+        # Read file content
+        sdf_content = file.read().decode('utf-8')
+        
+        # Parse SDF file
+        molecules = parse_sdf_file(sdf_content)
+        
+        if not molecules:
+            return jsonify({'error': 'No valid molecules found in SDF file'}), 400
+        
+        # Assign ID-based names to all molecules
+        for i, molecule in enumerate(molecules):
+            molecule['name'] = f"ID-{(i+1):02d}"
+        
+        return jsonify({
+            'molecules': molecules,
+            'total_molecules': len(molecules)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error processing SDF file: {str(e)}'}), 500
+
+@app.route('/api/experiment/heatmap', methods=['GET', 'POST'])
+def experiment_heatmap():
+    """Handle heatmap data persistence"""
+    global current_experiment
+    
+    if request.method == 'GET':
+        return jsonify(current_experiment.get('heatmap_data', {}))
+    
+    elif request.method == 'POST':
+        data = request.get_json()
+        current_experiment['heatmap_data'] = data
+        return jsonify({'message': 'Heatmap data saved successfully'})
+
 @app.route('/api/experiment/reset', methods=['POST'])
 def reset_experiment():
     """Reset current experiment"""
@@ -488,7 +975,8 @@ def reset_experiment():
         'materials': [],
         'procedure': [],
         'analytical_data': [],
-        'results': []
+        'results': [],
+        'heatmap_data': {}
     }
     return jsonify({'message': 'Experiment reset'})
 

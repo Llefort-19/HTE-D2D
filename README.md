@@ -1,240 +1,161 @@
 # HTE Design Application
 
-A High-Throughput Experimentation (HTE) design application for chemistry experiments with 96-well plate visualization and analytical data processing.
+A High-Throughput Experimentation (HTE) Design Application for chemical experiment planning and data management.
 
-## Features
+## 🚀 Quick Start
 
-- **Experiment Management**: Context, materials, and procedure tracking
-- **Analytical Data Processing**: Upload and process chromatogram data
-- **Heatmap Visualization**: 8x12 plate visualization with customizable formulas
-- **Compound Name Mapping**: Automatic display of compound names from data
-- **File Upload**: Support for Excel and CSV files
-- **Data Persistence**: Auto-save functionality across tabs
-- **Molecule Rendering**: RDKit-based molecular structure visualization
+### Prerequisites
 
-## Tech Stack
+- **Python**: 3.8 or higher (3.9+ recommended)
+- **Node.js**: 16 or higher (18+ recommended)
+- **npm**: 8 or higher
 
-### Backend
-- **Flask** (2.3.3) - Web framework
-- **Flask-CORS** (4.0.0) - Cross-origin resource sharing
-- **Pandas** (2.3.1) - Data manipulation
-- **OpenPyXL** (3.1.5) - Excel file handling
-- **RDKit** (2025.3.3) - Cheminformatics
-- **Pillow** (11.3.0) - Image processing
-- **CairoSVG** (2.7.1) - SVG to PNG conversion
+### Installation
 
-### Frontend
-- **React** (18.2.0) - UI framework
-- **React Router** (6.3.0) - Navigation
-- **Axios** (1.4.0) - HTTP client
-- **React Scripts** (5.0.1) - Build tools
-
-## Prerequisites
-
-- **Python** 3.8 or higher
-- **Node.js** 16 or higher
-- **npm** 8 or higher
-
-## Installation
-
-### 1. Clone the Repository
+#### Windows
 ```bash
-git clone https://github.com/Llefort-19/HTE-design-app.git
-cd HTE-design-app
+# Run the automated deployment script
+deploy.bat
 ```
 
-### 2. Install Dependencies
-
-#### Option A: Using npm scripts (Recommended)
+#### Manual Installation
 ```bash
-npm run install-all
-```
+# 1. Install Python dependencies
+pip install -r requirements.txt
 
-#### Option B: Manual installation
-```bash
-# Install root dependencies
+# 2. Install root npm dependencies
 npm install
 
-# Install frontend dependencies
+# 3. Install frontend dependencies
 cd frontend
 npm install
 cd ..
 
-# Install Python dependencies
-pip install -r requirements.txt
-```
-
-### 3. Start the Application
-
-#### Option A: Using npm scripts (Recommended)
-```bash
+# 4. Start the application
 npm start
 ```
 
-#### Option B: Manual start
-```bash
-# Terminal 1: Start backend
-cd backend
-python app.py
+## 🔧 Development
 
-# Terminal 2: Start frontend
-cd frontend
-npm start
-```
+### Available Scripts
 
-The application will be available at:
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:5000
+- `npm start` - Start both backend and frontend
+- `npm run dev` - Start in development mode
+- `npm run build` - Build frontend for production
+- `npm run audit` - Check for security vulnerabilities
+- `npm run audit-fix` - Fix security vulnerabilities
+- `npm run clean` - Clean install all dependencies
 
-## Project Structure
+### Project Structure
 
 ```
-HTE-design-app/
+HTE App/
 ├── backend/
-│   └── app.py                 # Flask backend server
+│   └── app.py              # Flask backend server
 ├── frontend/
-│   ├── public/
-│   │   └── index.html
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── AnalyticalData.js
-│   │   │   ├── ExperimentContext.js
-│   │   │   ├── Header.jsx
-│   │   │   ├── Heatmap.js
-│   │   │   ├── Materials.js
-│   │   │   ├── Procedure.js
-│   │   │   ├── Results.js
-│   │   │   ├── Toast.js
-│   │   │   └── ToastContext.js
-│   │   ├── App.js
-│   │   ├── App.css
-│   │   └── index.js
-│   └── package.json
-├── requirements.txt           # Python dependencies
-├── package.json              # Root npm configuration
-└── README.md
+│   │   ├── components/     # React components
+│   │   └── App.js          # Main React app
+│   └── package.json        # Frontend dependencies
+├── requirements.txt        # Python dependencies
+├── package.json           # Root dependencies
+└── deploy.bat            # Windows deployment script
 ```
 
-## Usage
-
-### 1. Experiment Context
-- Fill in experiment details and context information
-- Data auto-saves as you type
-
-### 2. Materials
-- Search and select materials from the inventory
-- Add custom materials to private inventory
-
-### 3. Procedure
-- Document experimental procedures
-- Auto-save functionality included
-
-### 4. Analytical Data
-- Generate Excel templates for chromatogram analysis
-- Upload filled templates with compound data
-- Filter and select compounds for analysis
-
-### 5. Results
-- View uploaded analytical data
-- Export results to Excel
-
-### 6. Heatmap
-- Visualize analytical results as 8x12 heatmaps
-- Build custom formulas using compound names
-- Multi-column selection for numerator/denominator
-- Percentage calculations available
-- Data persists across tab switches
-
-## API Endpoints
-
-### Experiment Management
-- `GET/POST /api/experiment/context` - Experiment context
-- `GET/POST /api/experiment/materials` - Materials data
-- `GET/POST /api/experiment/procedure` - Procedure data
-- `GET/POST /api/experiment/results` - Results data
-- `POST /api/experiment/reset` - Reset experiment
-
-### Analytical Data
-- `GET/POST /api/experiment/analytical` - Analytical data
-- `POST /api/experiment/analytical/template` - Generate template
-- `POST /api/experiment/analytical/upload` - Upload data
-
-### Heatmap
-- `GET/POST /api/experiment/heatmap` - Heatmap data persistence
-
-### Inventory
-- `GET /api/inventory` - Get inventory
-- `GET /api/inventory/search` - Search inventory
-- `POST /api/inventory/private/add` - Add to private inventory
-
-### Molecules
-- `POST /api/molecule/image` - Generate molecule image
-- `POST /api/upload/sdf` - Upload SDF file
-
-## Development
-
-### Backend Development
-```bash
-cd backend
-python app.py
-```
-
-### Frontend Development
-```bash
-cd frontend
-npm start
-```
-
-### Building for Production
-```bash
-cd frontend
-npm run build
-```
-
-## Deployment
-
-### Local Deployment
-1. Follow the installation instructions above
-2. Use `npm start` to run both frontend and backend
-
-### Production Deployment
-1. Build the frontend: `npm run build`
-2. Set up a production server (e.g., nginx, Apache)
-3. Configure the backend to run as a service
-4. Update proxy settings in production
-
-## Troubleshooting
+## 🛠️ Troubleshooting
 
 ### Common Issues
 
-1. **Port 3000 already in use**
-   - Kill existing processes: `npx kill-port 3000`
-   - Or use a different port: `PORT=3001 npm start`
+#### 1. Python Dependencies
+```bash
+# If you get build errors, try:
+pip install --upgrade setuptools wheel
+pip install -r requirements.txt --no-cache-dir
+```
 
-2. **Python dependencies not found**
-   - Ensure you're using the correct Python environment
-   - Reinstall requirements: `pip install -r requirements.txt`
+#### 2. Node.js Dependencies
+```bash
+# Clear npm cache and reinstall
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
 
-3. **RDKit installation issues**
-   - On Windows: Use conda: `conda install -c conda-forge rdkit`
-   - On Linux/Mac: `pip install rdkit-pypi`
+# For frontend specifically:
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+```
 
-4. **CairoSVG installation issues**
-   - On Windows: Install Visual C++ build tools
-   - On Linux: `sudo apt-get install libcairo2-dev`
+#### 3. Security Vulnerabilities
+```bash
+# Check for vulnerabilities
+npm run audit
 
-## Contributing
+# Fix non-breaking issues
+npm run audit-fix
+```
+
+#### 4. Port Conflicts
+- Frontend runs on: http://localhost:3000
+- Backend runs on: http://localhost:5000
+
+If ports are in use, kill the processes or change ports in the configuration.
+
+### Version Compatibility
+
+| Component | Minimum Version | Recommended Version |
+|-----------|----------------|-------------------|
+| Python    | 3.8            | 3.9+              |
+| Node.js   | 16.0.0         | 18.0.0+           |
+| npm       | 8.0.0          | 9.0.0+            |
+
+## 🔒 Security
+
+### Recent Updates
+- Updated all dependencies to latest secure versions
+- Added security overrides for vulnerable packages
+- Implemented proper error handling
+- Removed deprecated dependencies
+
+### Security Audit
+Run `npm run audit` to check for security vulnerabilities in both root and frontend packages.
+
+## 📝 Features
+
+- **Experiment Context**: Define experiment parameters and conditions
+- **Materials Management**: Chemical inventory and material selection
+- **96-Well Plate Design**: Visual plate layout and procedure planning
+- **Analytical Data**: Import and process experimental data
+- **Results Analysis**: Data visualization and analysis tools
+- **Heatmap Generation**: Visual representation of experimental results
+
+## 🐛 Known Issues
+
+1. **RDKit Compatibility**: Some versions of RDKit may have compatibility issues with Python 3.13+. Use Python 3.9-3.11 for best compatibility.
+2. **React Scripts**: Version 5.0.1 has some known vulnerabilities. Consider upgrading to a newer version when available.
+3. **Console Logging**: Development console logs are present in production code and should be removed.
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Test thoroughly
+4. Run tests and security audits
 5. Submit a pull request
 
-## License
+## 📄 License
 
-MIT License - see LICENSE file for details
+MIT License - see LICENSE file for details.
 
-## Support
+## 🆘 Support
 
-For issues and questions, please create an issue on the GitHub repository. 
+For issues and questions:
+1. Check the troubleshooting section above
+2. Review the console output for error messages
+3. Ensure all prerequisites are met
+4. Try the clean installation process
+
+---
+
+**Last Updated**: January 2025
+**Version**: 1.0.0 

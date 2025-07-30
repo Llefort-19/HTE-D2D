@@ -13,6 +13,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Check Python version
+for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
+echo ✅ Python version: %PYTHON_VERSION%
+
 REM Check if Node.js is installed
 node --version >nul 2>&1
 if errorlevel 1 (
@@ -20,6 +24,10 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+REM Check Node.js version
+for /f "tokens=1" %%i in ('node --version 2^>^&1') do set NODE_VERSION=%%i
+echo ✅ Node.js version: %NODE_VERSION%
 
 REM Check if npm is installed
 npm --version >nul 2>&1
@@ -29,21 +37,30 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Check npm version
+for /f "tokens=1" %%i in ('npm --version 2^>^&1') do set NPM_VERSION=%%i
+echo ✅ npm version: %NPM_VERSION%
+
 echo ✅ Prerequisites check passed
+
+REM Upgrade pip to latest version
+echo 📦 Upgrading pip...
+python -m pip install --upgrade pip
 
 REM Install Python dependencies
 echo 📦 Installing Python dependencies...
-pip install -r requirements.txt
+pip install -r requirements.txt --no-cache-dir
 
 if errorlevel 1 (
     echo ❌ Failed to install Python dependencies
+    echo 💡 Try running: pip install --upgrade setuptools wheel
     pause
     exit /b 1
 )
 
 REM Install npm dependencies
 echo 📦 Installing npm dependencies...
-npm install
+npm install --no-audit
 
 if errorlevel 1 (
     echo ❌ Failed to install npm dependencies
@@ -54,7 +71,7 @@ if errorlevel 1 (
 REM Install frontend dependencies
 echo 📦 Installing frontend dependencies...
 cd frontend
-npm install
+npm install --no-audit
 cd ..
 
 if errorlevel 1 (
@@ -62,6 +79,12 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+
+REM Run security audit and fix non-breaking issues
+echo 🔒 Running security audit...
+cd frontend
+npm audit fix --force
+cd ..
 
 echo ✅ All dependencies installed successfully!
 echo.
@@ -71,4 +94,6 @@ echo.
 echo The application will be available at:
 echo    Frontend: http://localhost:3000
 echo    Backend:  http://localhost:5000
+echo.
+echo ⚠️  Note: Some security warnings may remain. Run 'npm audit' in frontend/ to check.
 pause 

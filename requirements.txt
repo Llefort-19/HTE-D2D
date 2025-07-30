@@ -1,9 +1,9 @@
-flask==2.3.3
+flask==3.0.2
 flask-cors==4.0.0
-pandas==2.3.1
+pandas==2.2.1
 openpyxl==3.1.5
-numpy==2.3.1
-python-dotenv==1.0.0
-rdkit==2025.3.3
-pillow==11.3.0
+numpy==1.26.4
+python-dotenv==1.0.1
+rdkit==2024.9.1
+pillow==10.2.0
 cairosvg==2.7.1 

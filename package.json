@@ -9,7 +9,10 @@
     "start-frontend": "cd frontend && npm start",
     "install-all": "npm install && cd frontend && npm install",
     "build": "cd frontend && npm run build",
-    "dev": "concurrently \"npm run start-backend\" \"npm run start-frontend\""
+    "dev": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
+    "audit": "npm audit && cd frontend && npm audit",
+    "audit-fix": "npm audit fix && cd frontend && npm audit fix",
+    "clean": "rm -rf node_modules frontend/node_modules && npm install && cd frontend && npm install"
   },
   "dependencies": {
     "smiles-drawer": "^2.1.7",
@@ -26,5 +29,9 @@
     "flask"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
 }

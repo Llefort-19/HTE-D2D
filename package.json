@@ -7,12 +7,14 @@
     "start": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
     "start-backend": "cd backend && python app.py",
     "start-frontend": "cd frontend && npm start",
-    "install-all": "npm install && cd frontend && npm install",
+    "install-all": "npm install --legacy-peer-deps && cd frontend && npm install --legacy-peer-deps",
     "build": "cd frontend && npm run build",
     "dev": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
     "audit": "npm audit && cd frontend && npm audit",
     "audit-fix": "npm audit fix && cd frontend && npm audit fix",
-    "clean": "rm -rf node_modules frontend/node_modules && npm install && cd frontend && npm install"
+    "clean": "rm -rf node_modules frontend/node_modules package-lock.json frontend/package-lock.json && npm install --legacy-peer-deps && cd frontend && npm install --legacy-peer-deps",
+    "clean:win": "if exist node_modules rmdir /s /q node_modules && if exist frontend\\node_modules rmdir /s /q frontend\\node_modules && if exist package-lock.json del package-lock.json && if exist frontend\\package-lock.json del frontend\\package-lock.json && npm install --legacy-peer-deps && cd frontend && npm install --legacy-peer-deps && cd ..",
+    "postinstall": "cd frontend && npm install --legacy-peer-deps"
   },
   "dependencies": {
     "smiles-drawer": "^2.1.7",

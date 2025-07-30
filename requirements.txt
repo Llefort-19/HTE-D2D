@@ -5,4 +5,5 @@ openpyxl==3.1.5
 numpy==2.3.1
 python-dotenv==1.0.0
 rdkit==2025.3.3
-pillow==11.3.0 
+pillow==11.3.0
+cairosvg==2.7.1 

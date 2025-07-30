@@ -1,5 +1,30 @@
 {
+  "name": "hte-app",
+  "version": "1.0.0",
+  "description": "High-Throughput Experimentation (HTE) Design Application",
+  "main": "backend/app.py",
+  "scripts": {
+    "start": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
+    "start-backend": "cd backend && python app.py",
+    "start-frontend": "cd frontend && npm start",
+    "install-all": "npm install && cd frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "dev": "concurrently \"npm run start-backend\" \"npm run start-frontend\""
+  },
   "dependencies": {
-    "smiles-drawer": "^2.1.7"
-  }
+    "smiles-drawer": "^2.1.7",
+    "concurrently": "^8.2.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "hte",
+    "chemistry",
+    "experiment",
+    "react",
+    "flask"
+  ],
+  "author": "",
+  "license": "MIT"
 }

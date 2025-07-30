@@ -1,195 +1,240 @@
-# HTE App - High Throughput Experiment Design
+# HTE Design Application
 
-A comprehensive web application for designing, recording, and analyzing high throughput chemical experiments. The app allows users to manage chemical inventory, design 96-well plate experiments, record analytical data, and export results for ML model training.
+A High-Throughput Experimentation (HTE) design application for chemistry experiments with 96-well plate visualization and analytical data processing.
 
 ## Features
 
-- **Chemical Inventory Management**: Search and add chemicals from Excel-based inventory
-- **Experiment Context**: Define experiment metadata (author, date, project, etc.)
-- **Materials Management**: Add chemicals with roles, quantification levels, and properties
-- **96-Well Plate Design**: Interactive plate layout for reaction design
-- **Analytical Data Recording**: Record chromatogram areas for compounds
-- **Results Calculation**: Calculate and record conversion, yield, and selectivity
-- **Excel Export**: Export complete experiment data in template-compatible format
+- **Experiment Management**: Context, materials, and procedure tracking
+- **Analytical Data Processing**: Upload and process chromatogram data
+- **Heatmap Visualization**: 8x12 plate visualization with customizable formulas
+- **Compound Name Mapping**: Automatic display of compound names from data
+- **File Upload**: Support for Excel and CSV files
+- **Data Persistence**: Auto-save functionality across tabs
+- **Molecule Rendering**: RDKit-based molecular structure visualization
 
-## Technology Stack
+## Tech Stack
 
-- **Backend**: Python Flask with RESTful API
-- **Frontend**: React.js with modern UI components
-- **Data Storage**: In-memory storage with Excel export
-- **Dependencies**: pandas, openpyxl, flask-cors
+### Backend
+- **Flask** (2.3.3) - Web framework
+- **Flask-CORS** (4.0.0) - Cross-origin resource sharing
+- **Pandas** (2.3.1) - Data manipulation
+- **OpenPyXL** (3.1.5) - Excel file handling
+- **RDKit** (2025.3.3) - Cheminformatics
+- **Pillow** (11.3.0) - Image processing
+- **CairoSVG** (2.7.1) - SVG to PNG conversion
 
-## Setup Instructions
+### Frontend
+- **React** (18.2.0) - UI framework
+- **React Router** (6.3.0) - Navigation
+- **Axios** (1.4.0) - HTTP client
+- **React Scripts** (5.0.1) - Build tools
 
-### Prerequisites
+## Prerequisites
 
-- Python 3.7+
-- Node.js 14+
-- npm or yarn
+- **Python** 3.8 or higher
+- **Node.js** 16 or higher
+- **npm** 8 or higher
 
-### Backend Setup
+## Installation
 
-1. Install Python dependencies:
+### 1. Clone the Repository
 ```bash
+git clone https://github.com/Llefort-19/HTE-design-app.git
+cd HTE-design-app
+```
+
+### 2. Install Dependencies
+
+#### Option A: Using npm scripts (Recommended)
+```bash
+npm run install-all
+```
+
+#### Option B: Manual installation
+```bash
+# Install root dependencies
+npm install
+
+# Install frontend dependencies
+cd frontend
+npm install
+cd ..
+
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-2. Ensure your `Inventory.xlsx` file is in the root directory (contains chemical inventory)
+### 3. Start the Application
 
-3. Start the Flask backend:
-```bash
-cd backend
-python app.py
-```
-
-The backend will run on `http://localhost:5000`
-
-### Frontend Setup
-
-1. Install Node.js dependencies:
-```bash
-cd frontend
-npm install
-```
-
-2. Start the React development server:
+#### Option A: Using npm scripts (Recommended)
 ```bash
 npm start
 ```
 
-The frontend will run on `http://localhost:3000`
+#### Option B: Manual start
+```bash
+# Terminal 1: Start backend
+cd backend
+python app.py
 
-## Usage Guide
+# Terminal 2: Start frontend
+cd frontend
+npm start
+```
 
-### 1. Experiment Context
-- Enter experiment metadata (author, date, project, ELN number, objective)
-- This information will be included in the exported Excel file
+The application will be available at:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:5000
 
-### 2. Materials
-- Search the chemical inventory by name or common name
-- Add chemicals from inventory or manually enter new materials
-- Define chemical roles (Reactant, Product, Solvent, Reagent)
-- Set quantification levels and analytical parameters
-
-### 3. 96-Well Plate Design
-- Click on wells to add chemicals and define reaction conditions
-- Add compounds, reagents, and solvents with quantities
-- Wells with content are highlighted in green
-- Use the dropdown to quickly add materials from your defined list
-
-### 4. Analytical Data
-- Click on wells to copy compound names from the procedure
-- Enter chromatogram areas for each compound
-- Leave area fields blank if compound is not quantified
-- Use the same compound names as defined in Materials
-
-### 5. Results
-- Calculate and record conversion, yield, and selectivity percentages
-- View procedure and analytical data for each well
-- Export complete experiment data to Excel format
-
-## Data Export
-
-The app exports data in the same format as the provided template (`HTE_reaction_data_template_96_v3.2.xlsx`):
-
-- **Context**: Experiment metadata
-- **Materials**: Chemical information with properties
-- **Procedure**: 96-well plate layout with quantities
-- **Analytical data (1)**: Chromatogram areas
-- **Results (1)**: Calculated results
-
-The exported Excel file is suitable for:
-- ML model training
-- Data analysis
-- Further processing in other tools
-
-## File Structure
+## Project Structure
 
 ```
-HTE App/
+HTE-design-app/
 ├── backend/
-│   └── app.py                 # Flask backend API
+│   └── app.py                 # Flask backend server
 ├── frontend/
 │   ├── public/
 │   │   └── index.html
 │   ├── src/
 │   │   ├── components/
+│   │   │   ├── AnalyticalData.js
 │   │   │   ├── ExperimentContext.js
+│   │   │   ├── Header.jsx
+│   │   │   ├── Heatmap.js
 │   │   │   ├── Materials.js
 │   │   │   ├── Procedure.js
-│   │   │   ├── AnalyticalData.js
-│   │   │   └── Results.js
+│   │   │   ├── Results.js
+│   │   │   ├── Toast.js
+│   │   │   └── ToastContext.js
 │   │   ├── App.js
 │   │   ├── App.css
-│   │   ├── index.js
-│   │   └── index.css
+│   │   └── index.js
 │   └── package.json
-├── Inventory.xlsx             # Chemical inventory
-├── HTE_reaction_data_template_96_v3.2.xlsx  # Template file
 ├── requirements.txt           # Python dependencies
+├── package.json              # Root npm configuration
 └── README.md
 ```
 
+## Usage
+
+### 1. Experiment Context
+- Fill in experiment details and context information
+- Data auto-saves as you type
+
+### 2. Materials
+- Search and select materials from the inventory
+- Add custom materials to private inventory
+
+### 3. Procedure
+- Document experimental procedures
+- Auto-save functionality included
+
+### 4. Analytical Data
+- Generate Excel templates for chromatogram analysis
+- Upload filled templates with compound data
+- Filter and select compounds for analysis
+
+### 5. Results
+- View uploaded analytical data
+- Export results to Excel
+
+### 6. Heatmap
+- Visualize analytical results as 8x12 heatmaps
+- Build custom formulas using compound names
+- Multi-column selection for numerator/denominator
+- Percentage calculations available
+- Data persists across tab switches
+
 ## API Endpoints
 
-### Inventory
-- `GET /api/inventory` - Get all chemicals
-- `GET /api/inventory/search?q=<query>` - Search chemicals
-
-### Experiment Data
-- `GET/POST /api/experiment/context` - Experiment metadata
-- `GET/POST /api/experiment/materials` - Chemical materials
-- `GET/POST /api/experiment/procedure` - 96-well plate data
-- `GET/POST /api/experiment/analytical` - Analytical data
-- `GET/POST /api/experiment/results` - Experiment results
-- `POST /api/experiment/export` - Export to Excel
+### Experiment Management
+- `GET/POST /api/experiment/context` - Experiment context
+- `GET/POST /api/experiment/materials` - Materials data
+- `GET/POST /api/experiment/procedure` - Procedure data
+- `GET/POST /api/experiment/results` - Results data
 - `POST /api/experiment/reset` - Reset experiment
+
+### Analytical Data
+- `GET/POST /api/experiment/analytical` - Analytical data
+- `POST /api/experiment/analytical/template` - Generate template
+- `POST /api/experiment/analytical/upload` - Upload data
+
+### Heatmap
+- `GET/POST /api/experiment/heatmap` - Heatmap data persistence
+
+### Inventory
+- `GET /api/inventory` - Get inventory
+- `GET /api/inventory/search` - Search inventory
+- `POST /api/inventory/private/add` - Add to private inventory
+
+### Molecules
+- `POST /api/molecule/image` - Generate molecule image
+- `POST /api/upload/sdf` - Upload SDF file
 
 ## Development
 
-### Adding New Features
+### Backend Development
+```bash
+cd backend
+python app.py
+```
 
-1. **Backend**: Add new endpoints in `backend/app.py`
-2. **Frontend**: Create new components in `frontend/src/components/`
-3. **Styling**: Update CSS in `frontend/src/index.css`
+### Frontend Development
+```bash
+cd frontend
+npm start
+```
 
-### Data Validation
+### Building for Production
+```bash
+cd frontend
+npm run build
+```
 
-The app includes basic validation for:
-- Required fields in experiment context
-- Chemical name consistency between materials and procedure
-- Numerical values for quantities and areas
+## Deployment
 
-### Error Handling
+### Local Deployment
+1. Follow the installation instructions above
+2. Use `npm start` to run both frontend and backend
 
-- API errors are displayed as user-friendly messages
-- Form validation prevents invalid data entry
-- Export errors are handled gracefully
+### Production Deployment
+1. Build the frontend: `npm run build`
+2. Set up a production server (e.g., nginx, Apache)
+3. Configure the backend to run as a service
+4. Update proxy settings in production
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Backend not starting**: Check if port 5000 is available
-2. **Frontend not connecting**: Ensure backend is running on localhost:5000
-3. **Excel export fails**: Check if Inventory.xlsx exists in root directory
-4. **Search not working**: Verify Inventory.xlsx has correct column names
+1. **Port 3000 already in use**
+   - Kill existing processes: `npx kill-port 3000`
+   - Or use a different port: `PORT=3001 npm start`
 
-### Debug Mode
+2. **Python dependencies not found**
+   - Ensure you're using the correct Python environment
+   - Reinstall requirements: `pip install -r requirements.txt`
 
-Backend runs in debug mode by default. Check console for detailed error messages.
+3. **RDKit installation issues**
+   - On Windows: Use conda: `conda install -c conda-forge rdkit`
+   - On Linux/Mac: `pip install rdkit-pypi`
 
-## Future Enhancements
+4. **CairoSVG installation issues**
+   - On Windows: Install Visual C++ build tools
+   - On Linux: `sudo apt-get install libcairo2-dev`
 
-- Database integration for persistent storage
-- User authentication and multi-user support
-- Advanced search and filtering
-- Data visualization and charts
-- Integration with laboratory equipment
-- Automated result calculations
-- Template customization
-- Data import from other formats
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ## License
 
-This project is designed for research and educational use in chemical process development. 
+MIT License - see LICENSE file for details
+
+## Support
+
+For issues and questions, please create an issue on the GitHub repository. 

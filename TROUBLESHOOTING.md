@@ -2,7 +2,26 @@
 
 ## 🚨 Critical Issues and Solutions
 
-### 1. Security Vulnerabilities
+### 1. React Scripts onAfterSetupMiddleware Error
+
+#### Problem: React Scripts 5.0.1 deprecated middleware
+```
+Error: onAfterSetupMiddleware is not a function
+Error: onBeforeSetupMiddleware is not a function
+```
+
+#### Solution:
+```bash
+# The setupProxy.js file has been added to handle proxy configuration
+# This resolves the deprecated middleware issue in react-scripts 5.0.1
+
+# If you still encounter issues, try:
+cd frontend
+npm install http-proxy-middleware@^2.0.6
+npm start
+```
+
+### 2. Security Vulnerabilities
 
 #### Problem: Multiple security vulnerabilities in frontend dependencies
 ```
@@ -18,10 +37,10 @@ cd frontend
 npm audit fix --force
 
 # If issues persist, manually update vulnerable packages
-npm install nth-check@^2.1.1 postcss@^8.4.35 webpack-dev-server@^5.0.4 form-data@^4.0.0 on-headers@^1.1.0
+npm install nth-check@^2.1.1 postcss@^8.4.35 webpack-dev-server@^4.15.2 form-data@^4.0.0 on-headers@^1.1.0
 ```
 
-### 2. RDKit Installation Issues
+### 3. RDKit Installation Issues
 
 #### Problem: RDKit fails to install on some systems
 ```
@@ -40,7 +59,7 @@ conda install -c conda-forge rdkit
 pip install rdkit-pypi
 ```
 
-### 3. Python Version Compatibility
+### 4. Python Version Compatibility
 
 #### Problem: Python 3.13+ compatibility issues
 Your current Python version (3.13.1) may cause issues with some packages.
@@ -55,7 +74,7 @@ conda create -n hte-app python=3.11
 conda activate hte-app
 ```
 
-### 4. Node.js Version Issues
+### 5. Node.js Version Issues
 
 #### Problem: Node.js v22.14.0 is very recent and may cause compatibility issues
 
@@ -111,6 +130,23 @@ npm start
 ```
 
 ## 🐛 Common Error Messages and Solutions
+
+### React Scripts Middleware Errors
+
+#### Problem:
+```
+Error: onAfterSetupMiddleware is not a function
+Error: onBeforeSetupMiddleware is not a function
+```
+
+#### Solution:
+```bash
+# The setupProxy.js file handles this automatically
+# If issues persist, ensure http-proxy-middleware is installed:
+cd frontend
+npm install http-proxy-middleware@^2.0.6
+npm start
+```
 
 ### "Module not found" Errors
 

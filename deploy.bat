@@ -96,4 +96,8 @@ echo    Frontend: http://localhost:3000
 echo    Backend:  http://localhost:5000
 echo.
 echo ⚠️  Note: Some security warnings may remain. Run 'npm audit' in frontend/ to check.
+echo.
+echo 🔧 React Scripts Fix: If you encounter 'onAfterSetupMiddleware' errors:
+echo    - The setupProxy.js file has been added to handle proxy configuration
+echo    - This resolves the deprecated middleware issue in react-scripts 5.0.1
 pause 

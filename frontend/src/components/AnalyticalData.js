@@ -511,7 +511,7 @@ const AnalyticalData = () => {
                   <strong>Compound Selection:</strong> Choose compounds from Materials or add custom compounds manually.
                 </li>
                 <li>
-                  <strong>96-Well Format:</strong> Templates include all wells from A1 to H12 with automatic numbering.
+                  <strong>Well Plate Format:</strong> Templates include all wells with automatic numbering (A1-H12 for 96-well, A1-D6 for 24-well).
                 </li>
                 <li>
                   <strong>Sample IDs:</strong> Automatically generated using ELN number from Context tab.

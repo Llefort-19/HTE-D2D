@@ -36,7 +36,7 @@ code {
 
 .btn {
   background: var(--color-primary);
-  color: white;
+  color: var(--color-surface);
   border: none;
   padding: 10px 20px;
   border-radius: var(--radius-sm);
@@ -69,7 +69,7 @@ code {
 }
 
 .btn-danger {
-  color: #fff;
+  color: var(--color-surface);
   background-color: var(--color-danger);
   border-color: var(--color-danger);
 }
@@ -98,6 +98,7 @@ code {
   font-size: 14px;
   background: var(--color-surface);
   color: var(--color-text-primary);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .form-control:focus {
@@ -160,13 +161,13 @@ code {
 }
 
 .well {
-  width: 40px;
-  height: 40px;
+  width: 35px;
+  height: 35px;
   border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 9px;
   cursor: pointer;
   background: var(--color-surface);
   transition: background 0.15s ease;
@@ -191,27 +192,42 @@ code {
   color: var(--color-text-primary);
 }
 
-/* 96-Well Plate Layout Styles */
+/* Well Plate Layout Styles */
 .plate-container {
   display: flex;
   flex-direction: column;
-  max-width: 700px;
-  margin: 0 auto;
   background-color: var(--color-background);
   border-radius: var(--radius-lg);
   padding: 10px;
   border: 1px solid var(--color-border);
+  /* Fixed dimensions to fit 96-well plate without scrolling */
+  width: 505px; /* 455px plate + 10px padding */
+  height: 350px; /* Reduced to fit plate + headers */
+  position: relative;
 }
 
 .column-headers {
   display: grid;
-  grid-template-columns: 40px repeat(12, 40px);
   gap: 2px;
   margin-bottom: 2px;
 }
 
+.column-headers.plate-96 {
+  grid-template-columns: 35px repeat(12, 35px);
+}
+
+.column-headers.plate-24 {
+  grid-template-columns: 35px repeat(6, 35px);
+  width: 245px; /* 35px + (6 * 35px) */
+  position: absolute;
+  top: 50px; /* Account for plate header */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Center the element */
+  z-index: 1;
+}
+
 .corner-cell {
-  width: 40px;
+  width: 35px;
   height: 30px;
   background-color: transparent;
 }
@@ -227,7 +243,7 @@ code {
   font-weight: bold;
   font-size: 10px;
   color: var(--color-text-secondary);
-  width: 40px;
+  width: 35px;
   height: 30px;
 }
 
@@ -237,13 +253,13 @@ code {
 }
 
 .header-cell {
-  width: 40px;
+  width: 35px;
   height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 12px;
+  font-size: 11px;
   background-color: var(--color-background);
   border: 1px solid var(--color-border);
   cursor: pointer;
@@ -261,20 +277,34 @@ code {
   gap: 2px;
 }
 
-.plate-row {
+.plate-grid.plate-96 .plate-row {
   display: grid;
-  grid-template-columns: 40px repeat(12, 40px);
+  grid-template-columns: 35px repeat(12, 35px) !important;
+  gap: 2px;
+}
+
+.plate-grid.plate-24 {
+  width: 245px; /* 35px + (6 * 35px) */
+  position: absolute;
+  top: 80px; /* Account for plate header + column headers */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Center the element */
+}
+
+.plate-grid.plate-24 .plate-row {
+  display: grid;
+  grid-template-columns: 35px repeat(6, 35px) !important;
   gap: 2px;
 }
 
 .row-header {
-  width: 40px;
-  height: 40px;
+  width: 35px;
+  height: 35px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 12px;
+  font-size: 11px;
   background-color: var(--color-background);
   border: 1px solid var(--color-border);
   cursor: pointer;
@@ -287,13 +317,13 @@ code {
 }
 
 .well {
-  width: 40px;
-  height: 40px;
+  width: 35px;
+  height: 35px;
   border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 9px;
   cursor: pointer;
   background: var(--color-surface);
   transition: background 0.15s ease;

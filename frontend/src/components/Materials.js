@@ -536,26 +536,26 @@ const Materials = () => {
                           cursor: isExisting ? "not-allowed" : "pointer",
                           opacity: isExisting ? 0.6 : 1,
                           backgroundColor: isExisting
-                            ? "#f8f9fa"
+                            ? "var(--color-background)"
                             : isSelected
-                              ? "#e3f2fd"
+                              ? "var(--color-info-light)"
                               : undefined,
                           borderTop: isExisting
-                            ? "1px solid #dee2e6"
+                            ? "1px solid var(--color-border-dark)"
                             : isSelected
-                              ? "1px solid #2196f3"
-                              : "1px solid #eee",
+                              ? "1px solid var(--color-info)"
+                              : "1px solid var(--color-border-light)",
                           borderRight: isExisting
-                            ? "1px solid #dee2e6"
+                            ? "1px solid var(--color-border-dark)"
                             : isSelected
-                              ? "1px solid #2196f3"
-                              : "1px solid #eee",
-                          borderBottom: "1px solid #eee",
+                              ? "1px solid var(--color-info)"
+                              : "1px solid var(--color-border-light)",
+                          borderBottom: "1px solid var(--color-border-light)",
                           borderLeft: isSelected
-                            ? "3px solid #2196f3"
+                            ? "3px solid var(--color-info)"
                             : isExisting
-                              ? "1px solid #dee2e6"
-                              : "1px solid #eee",
+                              ? "1px solid var(--color-border-dark)"
+                              : "1px solid var(--color-border-light)",
                           padding: "8px 12px",
                         }}
                       >
@@ -567,7 +567,7 @@ const Materials = () => {
                           <div
                             style={{
                               fontSize: "11px",
-                              color: "#6c757d",
+                              color: "var(--color-text-light)",
                               fontStyle: "italic",
                               marginTop: "2px",
                             }}
@@ -582,7 +582,7 @@ const Materials = () => {
                   <div
                     className="search-result-item"
                     style={{
-                      color: "#666",
+                      color: "var(--color-text-muted)",
                       fontStyle: "italic",
                       padding: "20px",
                       textAlign: "center",
@@ -597,7 +597,7 @@ const Materials = () => {
                 className="search-results-placeholder"
                 style={{ padding: "20px", textAlign: "center" }}
               >
-                <p style={{ color: "#666", fontStyle: "italic" }}>
+                <p style={{ color: "var(--color-text-muted)", fontStyle: "italic" }}>
                   Search for chemicals to see results here
                 </p>
               </div>
@@ -650,7 +650,7 @@ const Materials = () => {
                           : "View Molecule"}
                       </button>
                     ) : (
-                      <span style={{ color: "#999", fontStyle: "italic" }}>
+                                              <span style={{ color: "var(--color-text-light)", fontStyle: "italic" }}>
                         No SMILES
                       </span>
                     )}
@@ -705,7 +705,7 @@ const Materials = () => {
         </div>
 
         {materials.length === 0 && (
-          <p style={{ textAlign: "center", color: "#666", marginTop: "20px" }}>
+          <p style={{ textAlign: "center", color: "var(--color-text-muted)", marginTop: "20px" }}>
             No materials added yet. Search inventory or add new materials to get
             started.
           </p>
@@ -893,17 +893,17 @@ const Materials = () => {
                   justifyContent: "center",
                   fontSize: "16px",
                   fontWeight: "bold",
-                  color: "#333",
+                  color: "var(--color-heading)",
                   cursor: "pointer",
                   transition: "all 0.2s ease"
                 }}
                 onMouseEnter={(e) => {
                   e.target.style.background = "rgba(0, 0, 0, 0.2)";
-                  e.target.style.color = "#000";
+                  e.target.style.color = "var(--color-text-primary)";
                 }}
                 onMouseLeave={(e) => {
                   e.target.style.background = "rgba(0, 0, 0, 0.1)";
-                  e.target.style.color = "#333";
+                  e.target.style.color = "var(--color-heading)";
                 }}
               >
                 ×
@@ -920,13 +920,13 @@ const Materials = () => {
                       maxHeight: "350px",
                       width: "auto",
                       height: "auto",
-                      border: "1px solid #ddd",
+                      border: "1px solid var(--color-border)",
                       borderRadius: "4px",
                     }}
                   />
                 </div>
               ) : (
-                <div style={{ color: "#666", fontStyle: "italic" }}>
+                <div style={{ color: "var(--color-text-muted)", fontStyle: "italic" }}>
                   Failed to generate molecule image
                 </div>
               )}

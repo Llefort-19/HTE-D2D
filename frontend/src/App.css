@@ -24,8 +24,8 @@
 }
 
 .card {
-  background-color: #ffffff;
-  border: 1px solid #e0e0e0;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 24px;
   margin: 20px auto;
@@ -36,25 +36,25 @@
 .card h2 {
   font-size: 24px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-heading);
   margin: 0 0 8px 0;
   text-align: left;
 }
 
 .card > p {
   font-size: 16px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin-bottom: 24px;
   text-align: left;
 }
 
 h4 {
   margin: 0 0 12px 0;
-  color: #333;
+  color: var(--color-heading);
   font-size: 16px;
   font-weight: 600;
   padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 /* Layout Sections */
@@ -66,8 +66,8 @@ h4 {
 
 .search-functionality-section,
 .search-results-section {
-  background-color: #f9fafb;
-  border: 1px solid #e0e0e0;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 8px;
   display: flex;
@@ -92,15 +92,15 @@ h4 {
 .search-container input[type="text"] {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--color-border-dark);
   border-radius: 4px;
   font-size: 14px;
   margin-bottom: 8px;
 }
 .search-container input[type="text"]:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 3px rgba(13, 202, 240, 0.1);
 }
 
 .search-container .btn {
@@ -116,13 +116,13 @@ h4 {
 .search-results-list,
 .search-results-placeholder {
   flex-grow: 1; /* Allow container to fill space */
-  background-color: #ffffff;
-  border: 1px dashed #d0d0d0;
+  background-color: var(--color-surface);
+  border: 1px dashed var(--color-border);
   border-radius: 4px;
   overflow-y: auto;
   /* Improved scrollbar styling */
   scrollbar-width: thin;
-  scrollbar-color: #c1c1c1 #f1f1f1;
+  scrollbar-color: var(--color-border-dark) var(--color-border-light);
 }
 
 /* Webkit scrollbar styling for better usability */
@@ -131,31 +131,31 @@ h4 {
 }
 
 .search-results-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-border-light);
   border-radius: 4px;
 }
 
 .search-results-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--color-border-dark);
   border-radius: 4px;
 }
 
 .search-results-list::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--color-text-light);
 }
 
 .search-results-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
+  color: var(--color-text-light);
   font-style: italic;
   padding: 12px;
 }
 
 .search-result-item {
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--color-border-light);
   cursor: pointer;
   transition: background-color 0.2s ease;
   font-size: 13px;
@@ -164,18 +164,18 @@ h4 {
   border-bottom: none;
 }
 .search-result-item:hover {
-  background-color: #f0f8ff;
+  background-color: var(--color-hover);
 }
 
 .search-result-item.selected-result {
-  background-color: #e3f2fd !important;
-  border-left: 3px solid #2196f3 !important;
+  background-color: var(--color-info-light) !important;
+  border-left: 3px solid var(--color-info) !important;
 }
 .search-result-item strong {
-  color: #333;
+  color: var(--color-heading);
 }
 .search-result-item small {
-  color: #777;
+  color: var(--color-text-secondary);
   font-size: 12px;
 }
 
@@ -246,13 +246,13 @@ h4 {
   padding: 12px 16px;
   text-align: left;
   vertical-align: middle;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .table thead th {
-  background-color: #f9fafb;
+  background-color: var(--color-background);
   font-weight: 600;
-  color: #444;
+  color: var(--color-heading);
   font-size: 14px;
 }
 
@@ -261,11 +261,11 @@ h4 {
 }
 
 .table tbody tr:hover {
-  background-color: #f9fafb;
+  background-color: var(--color-background);
 }
 
 .table td {
-  color: #555;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
@@ -295,43 +295,43 @@ h4 {
 }
 
 .btn-primary {
-  color: #fff;
-  background-color: #007bff;
-  border-color: #007bff;
+  color: var(--color-surface);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 .btn-primary:hover:not(:disabled) {
-  background-color: #0069d9;
-  border-color: #0062cc;
+  background-color: color-mix(in srgb, var(--color-primary) 85%, #000 15%);
+  border-color: color-mix(in srgb, var(--color-primary) 85%, #000 15%);
 }
 
 .btn-secondary {
-  color: #fff;
-  background-color: #6c757d;
-  border-color: #6c757d;
+  color: var(--color-surface);
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
 }
 .btn-secondary:hover:not(:disabled) {
-  background-color: #5a6268;
-  border-color: #545b62;
+  background-color: color-mix(in srgb, var(--color-secondary) 85%, #000 15%);
+  border-color: color-mix(in srgb, var(--color-secondary) 85%, #000 15%);
 }
 
 .btn-success {
-  color: #fff;
-  background-color: #28a745;
-  border-color: #28a745;
+  color: var(--color-surface);
+  background-color: var(--color-success);
+  border-color: var(--color-success);
 }
 .btn-success:hover:not(:disabled) {
-  background-color: #218838;
-  border-color: #1e7e34;
+  background-color: color-mix(in srgb, var(--color-success) 85%, #000 15%);
+  border-color: color-mix(in srgb, var(--color-success) 85%, #000 15%);
 }
 
 #clear {
   /* Assuming clear button has id="clear" or class */
-  background-color: #dc3545;
-  border-color: #dc3545;
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 #clear:hover:not(:disabled) {
-  background-color: #c82333;
-  border-color: #bd2130;
+  background-color: color-mix(in srgb, var(--color-danger) 85%, #000 15%);
+  border-color: color-mix(in srgb, var(--color-danger) 85%, #000 15%);
 }
 
 /* Responsive Design */

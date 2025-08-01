@@ -1,14 +1,17 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useToast } from "./ToastContext";
+import * as XLSX from 'xlsx';
+import axios from 'axios';
 
 const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
   const { showSuccess, showError } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
   
   const tabs = [
     { id: "context", label: "Experiment Context" },
     { id: "materials", label: "Materials" },
-    { id: "procedure", label: "96-Well Plate" },
+    { id: "procedure", label: "Well Plate" },
     { id: "analytical", label: "Analytical Data" },
     { id: "results", label: "Results" },
     { id: "heatmap", label: "Heatmap" },
@@ -27,6 +30,429 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
 
   const handleHelp = () => {
     onShowHelp(activeTab);
+  };
+
+  const exportToExcel = async () => {
+    setIsExporting(true);
+    try {
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Export Experiment Context
+      await exportExperimentContext(wb);
+
+      // Export Materials
+      await exportMaterials(wb);
+
+      // Export Procedure (96-Well Plate)
+      await exportProcedure(wb);
+
+      // Export Analytical Data
+      await exportAnalyticalData(wb);
+
+      // Export Heatmap Data
+      await exportHeatmapData(wb);
+
+      // Add Summary Sheet
+      await exportSummarySheet(wb);
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `HTE_Experiment_${timestamp}.xlsx`;
+
+      // Save the workbook
+      XLSX.writeFile(wb, filename);
+
+      showSuccess('Excel file exported successfully! Check your downloads folder.');
+    } catch (error) {
+      console.error('Export error:', error);
+      showError('Failed to export Excel file: ' + error.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const exportExperimentContext = async (wb) => {
+    try {
+      const response = await axios.get('/api/experiment/context');
+      const context = response.data;
+
+      const data = [
+        ['Experiment Context'],
+        [''],
+        ['Author', context.author || ''],
+        ['Date', context.date || ''],
+        ['Project', context.project || ''],
+        ['ELN Number', context.eln || ''],
+        ['Objective', context.objective || ''],
+        [''],
+        ['SDF Reaction Data'],
+        ['Name', 'Role', 'SMILES']
+      ];
+
+      // Add SDF data if available
+      const sdfData = localStorage.getItem('experimentSdfData');
+      if (sdfData) {
+        const parsedSdfData = JSON.parse(sdfData);
+        if (parsedSdfData.molecules) {
+          parsedSdfData.molecules.forEach((mol, index) => {
+            data.push([
+              mol.name || `ID-${String(index + 1).padStart(2, '0')}`,
+              mol.role || '',
+              mol.smiles || ''
+            ]);
+          });
+        }
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Experiment Context');
+    } catch (error) {
+      console.error('Error exporting context:', error);
+    }
+  };
+
+  const exportMaterials = async (wb) => {
+    try {
+      const response = await axios.get('/api/experiment/materials');
+      const materials = response.data;
+
+      if (materials && materials.length > 0) {
+        const headers = [
+          'Nr',
+          'Name',
+          'Alias',
+          'CAS',
+          'Molecular Weight',
+          'SMILES',
+          'Barcode',
+          'Role',
+          'Quantification Level',
+          'Analytical Wavelength',
+          'RRF to IS'
+        ];
+
+        const data = [headers];
+        materials.forEach((material, index) => {
+          data.push([
+            index + 1,
+            material.name || '',
+            material.alias || '',
+            material.cas || '',
+            material.molecular_weight || '',
+            material.smiles || '',
+            material.barcode || '',
+            material.role || '',
+            material.quantification_level || '',
+            material.analytical_wavelength || '',
+            material.rrf_to_is || ''
+          ]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, 'Materials');
+      } else {
+        // Create empty sheet with headers
+        const headers = [
+          'Nr',
+          'Name',
+          'Alias',
+          'CAS',
+          'Molecular Weight',
+          'SMILES',
+          'Barcode',
+          'Role',
+          'Quantification Level',
+          'Analytical Wavelength',
+          'RRF to IS'
+        ];
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Materials');
+      }
+    } catch (error) {
+      console.error('Error exporting materials:', error);
+    }
+  };
+
+  const exportProcedure = async (wb) => {
+    try {
+      const [procedureRes, contextRes] = await Promise.all([
+        axios.get('/api/experiment/procedure'),
+        axios.get('/api/experiment/context')
+      ]);
+      
+      const procedure = procedureRes.data;
+      const context = contextRes.data;
+
+      // Generate all 96 wells (A1-H12)
+      const wells = [];
+      const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      const columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+      
+      for (let row of rows) {
+        for (let col of columns) {
+          wells.push(`${row}${col}`);
+        }
+      }
+
+      // Collect all unique materials across all wells and assign consistent compound numbers
+      const allMaterials = new Set();
+      if (procedure && procedure.length > 0) {
+        procedure.forEach(wellData => {
+          if (wellData.materials) {
+            wellData.materials.forEach(material => {
+              if (material.name) {
+                allMaterials.add(material.name);
+              }
+            });
+          }
+        });
+      }
+
+      // Convert to array and sort for consistent ordering
+      const sortedMaterials = Array.from(allMaterials).sort();
+      const materialToCompoundMap = {};
+      sortedMaterials.forEach((materialName, index) => {
+        materialToCompoundMap[materialName] = index + 1;
+      });
+
+      // Create headers for Design sheet
+      const headers = ['Well', 'ID'];
+      for (let i = 1; i <= sortedMaterials.length; i++) {
+        headers.push(`Compound ${i} name`, `Compound ${i} amount`);
+      }
+
+      const data = [headers];
+
+      // Process each well in order (A1 to H12)
+      wells.forEach(wellId => {
+        const wellData = procedure.find(p => p.well === wellId);
+        const elnNumber = context.eln || '';
+        const wellIdWithEln = elnNumber ? `${elnNumber}_${wellId}` : wellId;
+        
+        const row = [wellId, wellIdWithEln];
+        
+        // Initialize all compound columns with empty values
+        for (let i = 0; i < sortedMaterials.length; i++) {
+          row.push('', '');
+        }
+        
+        if (wellData && wellData.materials && wellData.materials.length > 0) {
+          // Fill in compound names and amounts based on the consistent mapping
+          wellData.materials.forEach(material => {
+            const compoundNumber = materialToCompoundMap[material.name];
+            if (compoundNumber) {
+              const compoundIndex = (compoundNumber - 1) * 2 + 2; // +2 for Well and ID columns
+              row[compoundIndex] = material.name || '';
+              row[compoundIndex + 1] = material.amount || '';
+            }
+          });
+        }
+        
+        data.push(row);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Design');
+    } catch (error) {
+      console.error('Error exporting procedure:', error);
+    }
+  };
+
+  const exportAnalyticalData = async (wb) => {
+    try {
+      const response = await axios.get('/api/experiment/analytical');
+      const analyticalData = response.data;
+
+      // Check if there are uploaded files
+      if (analyticalData && analyticalData.uploadedFiles && analyticalData.uploadedFiles.length > 0) {
+        // Get the most recent uploaded file data
+        const mostRecentUpload = analyticalData.uploadedFiles[analyticalData.uploadedFiles.length - 1];
+        
+        if (mostRecentUpload && mostRecentUpload.data && mostRecentUpload.data.length > 0) {
+          // Create the correct column order: Nr, Well, ID, Name_1, Area_1, Name_2, Area_2, etc.
+          const orderedColumns = ['Nr', 'Well', 'ID'];
+          
+          // Find all Name_X and Area_X columns and sort them by number
+          const nameColumns = [];
+          const areaColumns = [];
+          
+          Object.keys(mostRecentUpload.data[0]).forEach(key => {
+            if (key.startsWith('Name_')) {
+              nameColumns.push(key);
+            } else if (key.startsWith('Area_')) {
+              areaColumns.push(key);
+            }
+          });
+          
+          // Sort by the number after the underscore
+          nameColumns.sort((a, b) => {
+            const numA = parseInt(a.split('_')[1]);
+            const numB = parseInt(b.split('_')[1]);
+            return numA - numB;
+          });
+          
+          areaColumns.sort((a, b) => {
+            const numA = parseInt(a.split('_')[1]);
+            const numB = parseInt(b.split('_')[1]);
+            return numA - numB;
+          });
+          
+          // Add Name_X and Area_X columns in alternating order
+          const maxCompounds = Math.max(nameColumns.length, areaColumns.length);
+          for (let i = 0; i < maxCompounds; i++) {
+            if (nameColumns[i]) orderedColumns.push(nameColumns[i]);
+            if (areaColumns[i]) orderedColumns.push(areaColumns[i]);
+          }
+          
+          // Add any remaining columns that don't follow the Name_X/Area_X pattern
+          Object.keys(mostRecentUpload.data[0]).forEach(key => {
+            if (!orderedColumns.includes(key)) {
+              orderedColumns.push(key);
+            }
+          });
+          
+          // Create headers with correct order
+          const headers = orderedColumns;
+          const data = [headers];
+
+          // Add data rows with correct column order
+          mostRecentUpload.data.forEach((row, index) => {
+            const rowData = [];
+            orderedColumns.forEach(column => {
+              rowData.push(row[column] || '');
+            });
+            data.push(rowData);
+          });
+
+          const ws = XLSX.utils.aoa_to_sheet(data);
+          XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+        } else {
+          // Create empty sheet if no data in the upload
+          const ws = XLSX.utils.aoa_to_sheet([['No analytical data available']]);
+          XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+        }
+      } else {
+        // Create empty sheet if no uploaded files
+        const ws = XLSX.utils.aoa_to_sheet([['No analytical data available']]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+      }
+    } catch (error) {
+      console.error('Error exporting analytical data:', error);
+    }
+  };
+
+  const exportHeatmapData = async (wb) => {
+    try {
+      const response = await axios.get('/api/experiment/heatmap');
+      const heatmapData = response.data;
+
+      // Check if heatmapData is an object with heatmaps array or empty object
+      if (heatmapData && heatmapData.heatmaps && heatmapData.heatmaps.length > 0) {
+        for (let index = 0; index < heatmapData.heatmaps.length; index++) {
+          const heatmap = heatmapData.heatmaps[index];
+          const sheetName = `Heatmap_${index + 1}`;
+          
+          // Create heatmap data
+          const data = [
+            [`Heatmap ${index + 1}: ${heatmap.title || 'Untitled'}`],
+            [''],
+            ['Formula:', heatmap.formula || 'No formula'],
+            ['Color Scheme:', heatmap.colorScheme || 'blue'],
+            ['Min Value:', heatmap.min || 0],
+            ['Max Value:', heatmap.max || 0],
+            ['']
+          ];
+
+          // Add column headers
+          const cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+          const rows = ['1', '2', '3', '4', '5', '6', '7', '8'];
+          
+          const headerRow = ['', ...cols];
+          data.push(headerRow);
+
+          // Add data rows
+          if (heatmap.data) {
+            heatmap.data.forEach((row, rowIndex) => {
+              const dataRow = [rows[rowIndex]];
+              row.forEach((cell, colIndex) => {
+                dataRow.push(cell || '');
+              });
+              data.push(dataRow);
+            });
+          }
+
+          const ws = XLSX.utils.aoa_to_sheet(data);
+          
+          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        }
+      } else {
+        // Create empty heatmap sheet
+        const data = [
+          ['Heatmap Data'],
+          [''],
+          ['No heatmaps generated yet.']
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, 'Heatmap Data');
+      }
+    } catch (error) {
+      console.error('Error exporting heatmap data:', error);
+    }
+  };
+
+  const exportSummarySheet = async (wb) => {
+    try {
+      // Get all data for summary
+      const [contextRes, materialsRes, procedureRes, analyticalRes, heatmapRes] = await Promise.all([
+        axios.get('/api/experiment/context'),
+        axios.get('/api/experiment/materials'),
+        axios.get('/api/experiment/procedure'),
+        axios.get('/api/experiment/analytical'),
+        axios.get('/api/experiment/heatmap')
+      ]);
+
+      const context = contextRes.data;
+      const materials = materialsRes.data;
+      const procedure = procedureRes.data;
+      const analytical = analyticalRes.data;
+      const heatmapData = heatmapRes.data;
+
+      const data = [
+        ['HTE Experiment Summary'],
+        [''],
+        ['Experiment Information'],
+        ['Author:', context.author || 'Not specified'],
+        ['Date:', context.date || 'Not specified'],
+        ['Project:', context.project || 'Not specified'],
+        ['ELN Number:', context.eln || 'Not specified'],
+        ['Objective:', context.objective || 'Not specified'],
+        [''],
+        ['Data Summary'],
+        ['Materials Count:', materials ? materials.length : 0],
+        ['Wells with Data:', procedure ? procedure.filter(w => w.well).length : 0],
+        ['Analytical Data Rows:', analytical ? analytical.length : 0],
+        ['Heatmaps Generated:', heatmapData && heatmapData.heatmaps ? heatmapData.heatmaps.length : 0],
+        [''],
+        ['Sheet Contents'],
+        ['1. Experiment Context - Basic experiment information and SDF reaction data'],
+        ['2. Materials - All chemical materials with properties and roles'],
+        ['3. Design - Complete 96-well plate design with materials and amounts for all wells (A1-H12)'],
+        ['4. Analytical Data - Exact copy of uploaded analytical results table'],
+        ['5. Heatmap Data - All generated heatmaps with formulas and color schemes'],
+        ['6. Summary - This overview sheet'],
+        [''],
+        ['Export Information'],
+        ['Export Date:', new Date().toLocaleString()],
+        ['Export Version:', '1.0'],
+        ['File Format:', 'Excel (.xlsx)']
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Summary');
+    } catch (error) {
+      console.error('Error exporting summary:', error);
+    }
   };
 
   return (
@@ -49,6 +475,15 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
           ))}
         </nav>
         <div className="app-bar-right">
+          <button 
+            className="btn btn-success export-btn"
+            onClick={exportToExcel}
+            disabled={isExporting}
+            title="Export all experiment data to Excel"
+            style={{ marginRight: "10px" }}
+          >
+            {isExporting ? 'Exporting...' : 'Export'}
+          </button>
           <button 
             className="btn btn-info help-btn"
             onClick={handleHelp}

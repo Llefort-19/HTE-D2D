@@ -139,7 +139,7 @@ const Results = () => {
             </div>
           </div>
         ) : (
-          <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
+          <div style={{ textAlign: "center", padding: "40px", color: "var(--color-text-muted)" }}>
             <p>No analytical data uploaded yet.</p>
             <p>Upload a file in the Analytical Data tab to view results here.</p>
           </div>
@@ -181,7 +181,7 @@ const Results = () => {
               
               <h4>Data Structure:</h4>
               <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>Well: 96-well plate position (A1-H12)</li>
+                <li>Well: Well plate position (A1-H12 for 96-well, A1-D6 for 24-well)</li>
                 <li>Sample ID: Unique identifier for each sample</li>
                 <li>Compound Areas: Chromatogram peak areas for each compound</li>
                 <li>Data is organized according to the analytical template format</li>
@@ -197,7 +197,7 @@ const Results = () => {
                   <strong>Materials:</strong> All chemicals used with their properties
                 </li>
                 <li>
-                  <strong>Procedure:</strong> 96-well plate layout with compound quantities
+                  <strong>Procedure:</strong> Well plate layout with compound quantities
                 </li>
                 <li>
                   <strong>Analytical Data:</strong> UPLC results from uploaded file

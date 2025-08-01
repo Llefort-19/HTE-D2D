@@ -7,12 +7,17 @@ const Heatmap = () => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [formula, setFormula] = useState("");
   const [heatmapData, setHeatmapData] = useState(null);
+  const [heatmaps, setHeatmaps] = useState([]);
   const [areaColumns, setAreaColumns] = useState([]);
   const [formulaBuilder, setFormulaBuilder] = useState({
     numerator: [],
     denominator: [],
     asPercentage: false
   });
+  const [colorScheme, setColorScheme] = useState("blue"); // blue, blue-yellow-red, green-blue, purple-green-yellow
+  const [heatmapColorSchemes, setHeatmapColorSchemes] = useState({});
+  const [valueFilter, setValueFilter] = useState("all"); // all, best5, worst5
+  const [heatmapValueFilters, setHeatmapValueFilters] = useState({});
 
   const { showSuccess, showError } = useToast();
 
@@ -64,8 +69,23 @@ const Heatmap = () => {
       const response = await axios.get("/api/experiment/heatmap");
       const data = response.data || {};
       
-      if (data.data && data.formula && data.min !== undefined && data.max !== undefined) {
-        setHeatmapData(data);
+      if (data.heatmaps && Array.isArray(data.heatmaps)) {
+        setHeatmaps(data.heatmaps);
+        if (data.heatmaps.length > 0) {
+          setHeatmapData(data.heatmaps[data.heatmaps.length - 1]); // Set current to last one
+        }
+        // Load color schemes and value filters if available
+        if (data.heatmapColorSchemes) {
+          setHeatmapColorSchemes(data.heatmapColorSchemes);
+        }
+        if (data.heatmapValueFilters) {
+          setHeatmapValueFilters(data.heatmapValueFilters);
+        }
+      } else if (data.data && data.formula && data.min !== undefined && data.max !== undefined) {
+        // Legacy single heatmap format
+        const legacyHeatmap = data;
+        setHeatmapData(legacyHeatmap);
+        setHeatmaps([legacyHeatmap]);
         setFormula(data.formula);
         
         // Also restore the formula builder state if available
@@ -80,10 +100,20 @@ const Heatmap = () => {
 
   const saveHeatmapData = async (heatmapDataToSave) => {
     try {
-      const dataToSave = {
+      const newHeatmap = {
         ...heatmapDataToSave,
         formulaBuilder: formulaBuilder,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        id: Date.now() // Unique identifier for each heatmap
+      };
+      
+      const updatedHeatmaps = [...heatmaps, newHeatmap];
+      setHeatmaps(updatedHeatmaps);
+      
+      const dataToSave = {
+        heatmaps: updatedHeatmaps,
+        heatmapColorSchemes: heatmapColorSchemes,
+        heatmapValueFilters: heatmapValueFilters
       };
       
       await axios.post("/api/experiment/heatmap", dataToSave);
@@ -96,6 +126,7 @@ const Heatmap = () => {
     try {
       await axios.post("/api/experiment/heatmap", {});
       setHeatmapData(null);
+      setHeatmaps([]);
       setFormula("");
       setFormulaBuilder({
         numerator: [],
@@ -104,6 +135,91 @@ const Heatmap = () => {
       });
     } catch (error) {
       console.error("Error clearing heatmap data:", error);
+    }
+  };
+
+  const removeHeatmap = async (heatmapId) => {
+    try {
+      const updatedHeatmaps = heatmaps.filter(heatmap => heatmap.id !== heatmapId);
+      setHeatmaps(updatedHeatmaps);
+      
+      if (updatedHeatmaps.length > 0) {
+        setHeatmapData(updatedHeatmaps[updatedHeatmaps.length - 1]); // Set current to last one
+      } else {
+        setHeatmapData(null);
+      }
+      
+      const dataToSave = {
+        heatmaps: updatedHeatmaps,
+        heatmapColorSchemes: heatmapColorSchemes,
+        heatmapValueFilters: heatmapValueFilters
+      };
+      
+      await axios.post("/api/experiment/heatmap", dataToSave);
+      showSuccess("Heatmap removed successfully!");
+    } catch (error) {
+      console.error("Error removing heatmap:", error);
+      showError("Error removing heatmap");
+    }
+  };
+
+  const updateHeatmapTitle = async (heatmapIndex, newTitle) => {
+    try {
+      const updatedHeatmaps = heatmaps.map((heatmap, index) => 
+        index === heatmapIndex ? { ...heatmap, title: newTitle } : heatmap
+      );
+      setHeatmaps(updatedHeatmaps);
+      
+      const dataToSave = {
+        heatmaps: updatedHeatmaps,
+        heatmapColorSchemes: heatmapColorSchemes,
+        heatmapValueFilters: heatmapValueFilters
+      };
+      
+      await axios.post("/api/experiment/heatmap", dataToSave);
+    } catch (error) {
+      console.error("Error updating heatmap title:", error);
+      showError("Error updating heatmap title");
+    }
+  };
+
+  const updateHeatmapColorScheme = async (heatmapId, newColorScheme) => {
+    const updatedColorSchemes = {
+      ...heatmapColorSchemes,
+      [heatmapId]: newColorScheme
+    };
+    setHeatmapColorSchemes(updatedColorSchemes);
+    
+    // Save to backend
+    try {
+      const dataToSave = {
+        heatmaps: heatmaps,
+        heatmapColorSchemes: updatedColorSchemes,
+        heatmapValueFilters: heatmapValueFilters
+      };
+      await axios.post("/api/experiment/heatmap", dataToSave);
+    } catch (error) {
+      console.error("Error saving color scheme:", error);
+    }
+  };
+
+  const updateHeatmapValueFilter = async (heatmapId, newValueFilter) => {
+    const updatedValueFilters = {
+      ...heatmapValueFilters,
+      [heatmapId]: newValueFilter
+    };
+    setHeatmapValueFilters(updatedValueFilters);
+    
+    // Save to backend
+    try {
+      const dataToSave = {
+        heatmaps: heatmaps,
+        heatmapColorSchemes: heatmapColorSchemes,
+        heatmapValueFilters: updatedValueFilters
+      };
+      await axios.post("/api/experiment/heatmap", dataToSave);
+    } catch (error) {
+      console.error("Error saving value filter:", error);
     }
   };
 
@@ -257,17 +373,102 @@ const Heatmap = () => {
     }
   };
 
-  const getHeatmapColor = (value, min, max) => {
-    if (value === 0 || min === max) return '#f8f9fa';
+  const getHeatmapColor = (value, min, max, colorSchemeToUse = colorScheme) => {
+    if (value === 0 || min === max) return 'var(--color-well-empty)';
     
     const normalized = (value - min) / (max - min);
     const intensity = Math.floor(normalized * 255);
-    return `rgb(255, ${255 - intensity}, ${255 - intensity})`;
+    
+    switch (colorSchemeToUse) {
+             case 'blue-yellow-red':
+         // #2c7bb6 → #abd9e9 → #ffffbf → #fdae61 → #d7191c
+         if (normalized <= 0.25) {
+           // #2c7bb6 to #abd9e9 (0-25%)
+           const t = normalized / 0.25;
+           return `rgb(${Math.round(44 + (171 - 44) * t)}, ${Math.round(123 + (217 - 123) * t)}, ${Math.round(182 + (233 - 182) * t)})`;
+         } else if (normalized <= 0.5) {
+           // #abd9e9 to #ffffbf (25-50%)
+           const t = (normalized - 0.25) / 0.25;
+           return `rgb(${Math.round(171 + (255 - 171) * t)}, ${Math.round(217 + (255 - 217) * t)}, ${Math.round(233 + (191 - 233) * t)})`;
+         } else if (normalized <= 0.75) {
+           // #ffffbf to #fdae61 (50-75%)
+           const t = (normalized - 0.5) / 0.25;
+           return `rgb(${Math.round(255 + (253 - 255) * t)}, ${Math.round(255 + (174 - 255) * t)}, ${Math.round(191 + (97 - 191) * t)})`;
+         } else {
+           // #fdae61 to #d7191c (75-100%)
+           const t = (normalized - 0.75) / 0.25;
+           return `rgb(${Math.round(253 + (215 - 253) * t)}, ${Math.round(174 + (25 - 174) * t)}, ${Math.round(97 + (28 - 97) * t)})`;
+         }
+             case 'green-blue':
+         // #ffffd9 → #edf8b1 → #c7e9b4 → #7fcdbb → #41b6c4
+         if (normalized <= 0.25) {
+           // #ffffd9 to #edf8b1 (0-25%)
+           const t = normalized / 0.25;
+           return `rgb(${Math.round(255 + (237 - 255) * t)}, ${Math.round(255 + (248 - 255) * t)}, ${Math.round(217 + (177 - 217) * t)})`;
+         } else if (normalized <= 0.5) {
+           // #edf8b1 to #c7e9b4 (25-50%)
+           const t = (normalized - 0.25) / 0.25;
+           return `rgb(${Math.round(237 + (199 - 237) * t)}, ${Math.round(248 + (233 - 248) * t)}, ${Math.round(177 + (180 - 177) * t)})`;
+         } else if (normalized <= 0.75) {
+           // #c7e9b4 to #7fcdbb (50-75%)
+           const t = (normalized - 0.5) / 0.25;
+           return `rgb(${Math.round(199 + (127 - 199) * t)}, ${Math.round(233 + (205 - 233) * t)}, ${Math.round(180 + (187 - 180) * t)})`;
+         } else {
+           // #7fcdbb to #41b6c4 (75-100%)
+           const t = (normalized - 0.75) / 0.25;
+           return `rgb(${Math.round(127 + (65 - 127) * t)}, ${Math.round(205 + (182 - 205) * t)}, ${Math.round(187 + (196 - 187) * t)})`;
+         }
+             case 'purple-green-yellow':
+         // #440154 → #3b528b → #21918c → #5ec962 → #fde725
+         if (normalized <= 0.25) {
+           // #440154 to #3b528b (0-25%)
+           const t = normalized / 0.25;
+           return `rgb(${Math.round(68 + (59 - 68) * t)}, ${Math.round(1 + (82 - 1) * t)}, ${Math.round(84 + (139 - 84) * t)})`;
+         } else if (normalized <= 0.5) {
+           // #3b528b to #21918c (25-50%)
+           const t = (normalized - 0.25) / 0.25;
+           return `rgb(${Math.round(59 + (33 - 59) * t)}, ${Math.round(82 + (145 - 82) * t)}, ${Math.round(139 + (140 - 139) * t)})`;
+         } else if (normalized <= 0.75) {
+           // #21918c to #5ec962 (50-75%)
+           const t = (normalized - 0.5) / 0.25;
+           return `rgb(${Math.round(33 + (94 - 33) * t)}, ${Math.round(145 + (201 - 145) * t)}, ${Math.round(140 + (98 - 140) * t)})`;
+         } else {
+           // #5ec962 to #fde725 (75-100%)
+           const t = (normalized - 0.75) / 0.25;
+           return `rgb(${Math.round(94 + (253 - 94) * t)}, ${Math.round(201 + (231 - 201) * t)}, ${Math.round(98 + (37 - 98) * t)})`;
+         }
+      case 'blue':
+      default:
+        return `rgb(${255 - intensity}, ${255 - intensity}, 255)`;
+    }
   };
 
-  const getCellStyle = (value, min, max) => {
+  const getCellStyle = (value, min, max, colorSchemeToUse = colorScheme) => {
+    const backgroundColor = getHeatmapColor(value, min, max, colorSchemeToUse);
+    
+    // Determine text color based on background brightness
+    let textColor = 'var(--color-text-primary)'; // Default black
+    if (backgroundColor !== 'var(--color-well-empty)') { // Not white/empty cell
+      // Extract RGB values and calculate brightness
+      const rgbMatch = backgroundColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+      if (rgbMatch) {
+        const r = parseInt(rgbMatch[1]);
+        const g = parseInt(rgbMatch[2]);
+        const b = parseInt(rgbMatch[3]);
+        
+        // Use a more robust brightness calculation
+        const brightness = Math.round((r * 299 + g * 587 + b * 114) / 1000);
+        
+        // Use white text for darker backgrounds (brightness < 120) - balanced contrast
+        if (brightness < 120) {
+          textColor = 'var(--color-surface)';
+        }
+      }
+    }
+    
     return {
-      backgroundColor: getHeatmapColor(value, min, max),
+      backgroundColor: backgroundColor,
+      color: textColor,
       border: '1px solid #dee2e6',
       padding: '8px',
       textAlign: 'center',
@@ -332,6 +533,38 @@ const Heatmap = () => {
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   const cols = Array.from({length: 12}, (_, i) => i + 1);
 
+  // Get filtered values for highlighting
+  const getFilteredValues = (heatmapData, valueFilterToUse = valueFilter) => {
+    if (!heatmapData || valueFilterToUse === 'all') return new Set();
+    
+    const allValues = [];
+    heatmapData.data.forEach((row, rowIndex) => {
+      row.forEach((value, colIndex) => {
+        if (value > 0) {
+          allValues.push({ value, rowIndex, colIndex });
+        }
+      });
+    });
+    
+    if (valueFilterToUse === 'best5') {
+      return new Set(
+        allValues
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5)
+          .map(item => `${item.rowIndex}-${item.colIndex}`)
+      );
+    } else if (valueFilterToUse === 'worst5') {
+      return new Set(
+        allValues
+          .sort((a, b) => a.value - b.value)
+          .slice(0, 5)
+          .map(item => `${item.rowIndex}-${item.colIndex}`)
+      );
+    }
+    
+    return new Set();
+  };
+
   return (
     <div className="card">
       <h2>Heatmap Visualization</h2>
@@ -342,7 +575,7 @@ const Heatmap = () => {
             <h4>Formula Builder</h4>
             
                          {!analyticalData ? (
-               <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+               <div style={{ textAlign: 'center', padding: '20px', color: 'var(--color-text-muted)' }}>
                  <p>No analytical data available.</p>
                  <p>Upload a file in the Analytical Data tab first.</p>
                </div>
@@ -355,9 +588,9 @@ const Heatmap = () => {
                        <div style={{ 
                          maxHeight: '150px', 
                          overflowY: 'auto', 
-                         border: '1px solid #ddd', 
+                         border: '1px solid var(--color-border)', 
                          padding: '10px', 
-                         backgroundColor: '#f8f9fa',
+                         backgroundColor: 'var(--color-well-empty)',
                          borderRadius: '4px'
                        }}>
                                                    {areaColumns.length > 0 ? (
@@ -389,9 +622,9 @@ const Heatmap = () => {
                        <div style={{ 
                          maxHeight: '150px', 
                          overflowY: 'auto', 
-                         border: '1px solid #ddd', 
+                         border: '1px solid var(--color-border)', 
                          padding: '10px', 
-                         backgroundColor: '#f8f9fa',
+                         backgroundColor: 'var(--color-well-empty)',
                          borderRadius: '4px'
                        }}>
                                                    {areaColumns.length > 0 ? (
@@ -421,9 +654,9 @@ const Heatmap = () => {
                      <div className="form-group">
                        <label>Generated Formula:</label>
                        <div style={{ 
-                         border: '1px solid #ddd', 
+                         border: '1px solid var(--color-border)', 
                          padding: '15px', 
-                         backgroundColor: '#f8f9fa',
+                         backgroundColor: 'var(--color-well-empty)',
                          borderRadius: '4px',
                          minHeight: '150px',
                          display: 'flex',
@@ -441,7 +674,7 @@ const Heatmap = () => {
                                       ? getCompoundName(formulaBuilder.numerator[0]) 
                                       : `(${formulaBuilder.numerator.map(col => getCompoundName(col)).join(' + ')})`}
                                   </div>
-                                  <hr style={{ margin: '5px 0', border: '1px solid #666' }} />
+                                  <hr style={{ margin: '5px 0', border: '1px solid var(--color-text-muted)' }} />
                                   <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>
                                     {formulaBuilder.denominator.length === 1 
                                       ? getCompoundName(formulaBuilder.denominator[0]) 
@@ -464,9 +697,9 @@ const Heatmap = () => {
                                  justifyContent: 'center',
                                  marginTop: '10px',
                                  padding: '5px 10px',
-                                 border: '1px solid #007bff',
+                                 border: '1px solid var(--color-info)',
                                  borderRadius: '4px',
-                                 backgroundColor: '#e7f3ff'
+                                 backgroundColor: 'var(--color-info-light)'
                                }}>
                                  <span style={{ marginRight: '5px' }}>×</span>
                                  <span style={{ 
@@ -480,7 +713,7 @@ const Heatmap = () => {
                              )}
                            </div>
                          ) : (
-                           <div style={{ color: '#666', fontStyle: 'italic' }}>
+                           <div style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
                              Select numerator columns to see formula
                            </div>
                          )}
@@ -514,6 +747,7 @@ const Heatmap = () => {
                          className="btn btn-primary" 
                          onClick={generateHeatmap}
                          disabled={!formulaBuilder.numerator || !Array.isArray(formulaBuilder.numerator) || formulaBuilder.numerator.length === 0}
+                         style={{ backgroundColor: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}
                        >
                          Generate Heatmap
                        </button>
@@ -529,93 +763,222 @@ const Heatmap = () => {
                    </div>
                  </div>
 
-                 <div className="mt-3">
-                   <h5>Available Area Columns:</h5>
-                   <div style={{ maxHeight: '100px', overflowY: 'auto', border: '1px solid #ddd', padding: '10px', backgroundColor: '#f8f9fa' }}>
-                     {areaColumns.length > 0 ? (
-                       areaColumns.map((col, index) => (
-                         <span key={index} className="badge badge-info mr-1 mb-1" title={col}>
-                           {getCompoundName(col)}
-                         </span>
-                       ))
-                     ) : (
-                       <p style={{ margin: 0, color: '#666' }}>No area columns found</p>
-                     )}
-                   </div>
-                 </div>
+                 
                </>
              )}
           </div>
         </div>
 
-        <div className="col-md-12">
-          <div className="card">
-            <h4>96-Well Plate Heatmap</h4>
-                         {heatmapData ? (
-               <div>
-                 <div className="mb-2">
-                   <strong>Formula:</strong> {heatmapData.formula}
-                 </div>
-                 <div className="mb-2">
-                   <strong>Range:</strong> {heatmapData.min.toFixed(3)} - {heatmapData.max.toFixed(3)}
-                 </div>
-                 <div className="mb-2">
-                   <strong>Debug:</strong> Rows: {rows.length}, Cols: {cols.length}, Data: {heatmapData.data.length}x{heatmapData.data[0]?.length}
-                 </div>
-                
-                                 <div style={{ overflowX: 'auto' }}>
-                   <table className="heatmap-table" style={{ 
-                     borderCollapse: 'collapse', 
-                     margin: '0 auto',
-                     tableLayout: 'fixed',
-                     width: 'auto',
-                     minWidth: '600px'
-                   }}>
-                    <thead>
-                      <tr>
-                        <th style={{ padding: '8px', fontSize: '12px', width: '30px' }}></th>
-                        {cols.map(col => (
-                          <th key={col} style={{ 
-                            padding: '8px', 
-                            fontSize: '12px', 
-                            textAlign: 'center',
-                            width: '40px',
-                            border: '1px solid #dee2e6'
-                          }}>{col}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row, rowIndex) => (
-                        <tr key={row}>
-                          <td style={{ 
-                            padding: '8px', 
-                            fontSize: '12px', 
-                            fontWeight: 'bold',
-                            border: '1px solid #dee2e6'
-                          }}>{row}</td>
-                          {cols.map((col, colIndex) => (
-                            <td key={col} style={{
-                              ...getCellStyle(heatmapData.data[rowIndex][colIndex], heatmapData.min, heatmapData.max),
-                              border: '1px solid #dee2e6',
-                              width: '40px',
-                              height: '40px'
+                                   <div className="col-md-12">
+            <div className="card">
+
+              {heatmaps.length > 0 ? (
+                <div>
+                  {heatmaps.map((heatmap, index) => (
+                    <div key={heatmap.id || index} style={{ marginBottom: '30px' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'baseline', 
+                        marginBottom: '15px', 
+                        gap: '15px', 
+                        paddingLeft: '0',
+                        justifyContent: 'flex-start',
+                        width: 'fit-content',
+                        marginLeft: '0',
+                        paddingLeft: '40px'
+                      }}>
+                        <h4 style={{ 
+                          margin: 0, 
+                          color: 'var(--color-heading)', 
+                          fontSize: '20px', 
+                          fontWeight: 'bold', 
+                          paddingLeft: '0',
+                          marginLeft: '0',
+                          lineHeight: '1'
+                        }}>
+                          Heatmap #{index + 1}
+                        </h4>
+                        <div style={{ width: '300px' }}>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Enter heatmap title..."
+                            value={heatmap.title || ''}
+                            onChange={(e) => updateHeatmapTitle(index, e.target.value)}
+                            style={{ 
+                              fontSize: '20px', 
+                              fontWeight: 'bold',
+                              border: 'none',
+                              borderBottom: '2px solid var(--color-primary)',
+                              borderRadius: '0',
+                              padding: '5px 0',
+                              backgroundColor: 'transparent',
+                              lineHeight: '1'
+                            }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                        <div style={{ flex: 1, overflowX: 'auto', display: 'flex', justifyContent: 'center' }}>
+                          <table className="heatmap-table" style={{ 
+                            borderCollapse: 'collapse', 
+                            margin: '0 auto',
+                            tableLayout: 'fixed',
+                            width: 'auto',
+                            minWidth: '600px'
+                          }}>
+                            <thead>
+                              <tr>
+                                <th style={{ padding: '8px', fontSize: '12px', width: '30px' }}></th>
+                                {cols.map(col => (
+                                  <th key={col} style={{ 
+                                    padding: '8px', 
+                                    fontSize: '12px', 
+                                    textAlign: 'center',
+                                    width: '40px',
+                                    border: '1px solid var(--color-border-dark)'
+                                  }}>{col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((row, rowIndex) => (
+                                <tr key={row}>
+                                  <td style={{ 
+                                    padding: '8px', 
+                                    fontSize: '12px', 
+                                    fontWeight: 'bold',
+                                    border: '1px solid var(--color-border-dark)'
+                                  }}>{row}</td>
+                                                                     {cols.map((col, colIndex) => {
+                                     const value = heatmap.data[rowIndex][colIndex];
+                                     const currentValueFilter = heatmapValueFilters[heatmap.id || index] || "all";
+                                     const filteredValues = getFilteredValues(heatmap, currentValueFilter);
+                                     const isHighlighted = filteredValues.has(`${rowIndex}-${colIndex}`);
+                                     
+                                     let displayValue = '';
+                                     if (value > 0) {
+                                       if (heatmap.formulaBuilder?.asPercentage) {
+                                         displayValue = `${Math.round(value * 100)}%`;
+                                       } else {
+                                         displayValue = value.toFixed(2);
+                                       }
+                                     }
+                                     
+                                     // Only show value if it's highlighted or if showing all values
+                                     const shouldShowValue = currentValueFilter === 'all' || isHighlighted;
+                                    
+                                                                         return (
+                                       <td key={col} style={{
+                                         ...getCellStyle(value, heatmap.min, heatmap.max, heatmapColorSchemes[heatmap.id || index] || "blue"),
+                                         border: '1px solid var(--color-border-dark)',
+                                         width: '40px',
+                                         height: '40px',
+                                         position: 'relative'
+                                       }}>
+                                        {shouldShowValue ? displayValue : ''}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          gap: '10px', 
+                          minWidth: '200px',
+                          justifyContent: 'center',
+                          height: '400px',
+                          alignSelf: 'center'
+                        }}>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label><strong>Formula:</strong></label>
+                            <div style={{ 
+                              padding: '12px', 
+                              backgroundColor: 'var(--color-well-empty)', 
+                              border: '1px solid var(--color-border-dark)',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              minHeight: '60px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center'
                             }}>
-                              {heatmapData.data[rowIndex][colIndex] > 0 ? heatmapData.data[rowIndex][colIndex].toFixed(2) : ''}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                              {heatmap.formulaBuilder?.numerator?.length > 0 ? (
+                                <div style={{ textAlign: 'center' }}>
+                                  {heatmap.formulaBuilder.numerator.map(col => getCompoundName(col)).join(' + ')}
+                                  {heatmap.formulaBuilder.denominator?.length > 0 && (
+                                    <>
+                                      <br />
+                                      <hr style={{ margin: '6px 0', border: '1px solid var(--color-border-dark)' }} />
+                                      {heatmap.formulaBuilder.denominator.map(col => getCompoundName(col)).join(' + ')}
+                                    </>
+                                  )}
+                                  {heatmap.formulaBuilder?.asPercentage && (
+                                    <>
+                                      <br />
+                                      <span style={{ color: 'var(--color-info)', fontWeight: 'bold' }}>× 100%</span>
+                                    </>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--color-text-light)', fontStyle: 'italic' }}>No formula</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label><strong>Color Scheme:</strong></label>
+                            <select 
+                              className="form-control" 
+                              value={heatmapColorSchemes[heatmap.id || index] || "blue"} 
+                              onChange={(e) => updateHeatmapColorScheme(heatmap.id || index, e.target.value)}
+                              style={{ width: '100%' }}
+                            >
+                              <option value="blue">Blue</option>
+                              <option value="blue-yellow-red">Blue-Yellow-Red</option>
+                              <option value="green-blue">Green-Blue</option>
+                              <option value="purple-green-yellow">Purple-Green-Yellow</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label><strong>Value Filter:</strong></label>
+                            <select 
+                              className="form-control" 
+                              value={heatmapValueFilters[heatmap.id || index] || "all"} 
+                              onChange={(e) => updateHeatmapValueFilter(heatmap.id || index, e.target.value)}
+                              style={{ width: '100%' }}
+                            >
+                              <option value="all">Show All Values</option>
+                              <option value="best5">Show Top 5 Values</option>
+                              <option value="worst5">Show Bottom 5 Values</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <button 
+                              className="btn btn-outline-danger btn-sm" 
+                              onClick={() => removeHeatmap(heatmap.id || index)}
+                              style={{ width: '100%' }}
+                            >
+                              Remove Heatmap #{index + 1}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                <p>No heatmap generated yet.</p>
-                <p>Use the formula builder to create a calculation and generate the heatmap.</p>
-              </div>
-            )}
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
+                  <p>No heatmaps generated yet.</p>
+                  <p>Use the formula builder to create a calculation and generate heatmaps.</p>
+                </div>
+              )}
           </div>
         </div>
       </div>
@@ -652,7 +1015,7 @@ const Heatmap = () => {
                    <strong>Percentage Option:</strong> Express results as percentages (multiply by 100)
                  </li>
                  <li>
-                   <strong>8x12 Grid:</strong> Visualize data in the same format as your 96-well plate
+                   <strong>Dynamic Grid:</strong> Visualize data in the same format as your well plate (8x12 for 96-well, 4x6 for 24-well)
                  </li>
                  <li>
                    <strong>Color Coding:</strong> Values are color-coded from light to dark based on magnitude
@@ -685,9 +1048,10 @@ const Heatmap = () => {
               <h4>Color Interpretation:</h4>
               <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
                 <li><strong>White:</strong> Zero or no data</li>
-                <li><strong>Light Red:</strong> Low values</li>
-                <li><strong>Dark Red:</strong> High values</li>
-                <li><strong>Numbers:</strong> Actual calculated values displayed in each cell</li>
+                <li><strong>Light Colors:</strong> Low values</li>
+                <li><strong>Dark Colors:</strong> High values</li>
+                                 <li><strong>Color Schemes:</strong> Choose from Blue, Blue-Yellow-Red, Green-Blue, or Purple-Green-Yellow</li>
+                <li><strong>Value Display:</strong> Percentages show as whole numbers (e.g., "85%"), other values show 2 decimal places</li>
               </ul>
             </div>
             <div className="modal-footer">

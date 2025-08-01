@@ -39,31 +39,31 @@ const Toast = ({ toast }) => {
       case 'success':
         return {
           ...baseStyles,
-          backgroundColor: '#d4edda',
-          borderColor: '#c3e6cb',
-          color: '#155724',
+          backgroundColor: 'var(--color-success-light)',
+          borderColor: 'var(--color-success-border)',
+          color: 'var(--color-success-text)',
         };
       case 'error':
         return {
           ...baseStyles,
-          backgroundColor: '#f8d7da',
-          borderColor: '#f5c6cb',
-          color: '#721c24',
+          backgroundColor: 'var(--color-danger-light)',
+          borderColor: 'var(--color-danger-border)',
+          color: 'var(--color-danger-text)',
         };
       case 'warning':
         return {
           ...baseStyles,
-          backgroundColor: '#fff3cd',
-          borderColor: '#ffeaa7',
-          color: '#856404',
+          backgroundColor: 'var(--color-warning-light)',
+          borderColor: 'var(--color-warning-border)',
+          color: 'var(--color-warning-text)',
         };
       case 'info':
       default:
         return {
           ...baseStyles,
-          backgroundColor: '#d1ecf1',
-          borderColor: '#bee5eb',
-          color: '#0c5460',
+          backgroundColor: 'var(--color-info-light)',
+          borderColor: 'var(--color-info-border)',
+          color: 'var(--color-info-text)',
         };
     }
   };

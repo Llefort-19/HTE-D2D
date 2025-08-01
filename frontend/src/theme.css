@@ -4,27 +4,73 @@
    Global Theme Tokens – Define once, reuse everywhere
    ===================================================== */
 :root {
-  /* Brand palette */
-  --color-primary: #2b7a78; /* teal */
-  --color-secondary: #17252a; /* dark slate */
-  --color-accent: #3aafa9; /* mint */
+  /* Brand palette - Based on ExperimentContext as leading example */
+  --color-primary: #2b7a78; /* teal - main brand color */
+  --color-secondary: #17252a; /* dark slate - secondary brand */
+  --color-accent: #3aafa9; /* mint - accent color */
+  --color-accent-light: #4fc3c7; /* lighter mint for hover states */
 
   /* UI neutrals */
-  --color-background: #f8f9fa; /* light grey */
+  --color-background: #f8f9fa; /* light grey background */
   --color-surface: #ffffff; /* cards, modals */
   --color-border: #e0e0e0; /* light border */
+  --color-border-light: #f0f0f0; /* lighter border for subtle separators */
+  --color-border-dark: #dee2e6; /* darker border for emphasis */
   --color-overlay: rgba(0, 0, 0, 0.6);
 
-  /* Text */
-  --color-text-primary: #212529;
-  --color-text-secondary: #555;
-  --color-heading: #17252a;
+  /* Text colors */
+  --color-text-primary: #212529; /* main text */
+  --color-text-secondary: #555; /* secondary text */
+  --color-text-muted: #666; /* muted text for placeholders */
+  --color-text-light: #6c757d; /* light text for captions */
+  --color-heading: #17252a; /* headings */
 
-  /* Semantic states */
-  --color-success: #198754;
-  --color-danger: #dc3545;
-  --color-warning: #ffc107;
-  --color-info: #0dcaf0;
+  /* Semantic states - Unified with brand colors */
+  --color-success: #198754; /* green */
+  --color-success-light: #d4edda; /* light green background */
+  --color-success-border: #c3e6cb; /* light green border */
+  --color-success-text: #155724; /* dark green text */
+
+  --color-danger: #dc3545; /* red */
+  --color-danger-light: #f8d7da; /* light red background */
+  --color-danger-border: #f5c6cb; /* light red border */
+  --color-danger-text: #721c24; /* dark red text */
+
+  --color-warning: #ffc107; /* yellow */
+  --color-warning-light: #fff3cd; /* light yellow background */
+  --color-warning-border: #ffeaa7; /* light yellow border */
+  --color-warning-text: #856404; /* dark yellow text */
+
+  --color-info: #0dcaf0; /* cyan */
+  --color-info-light: #d1ecf1; /* light cyan background */
+  --color-info-border: #bee5eb; /* light cyan border */
+  --color-info-text: #0c5460; /* dark cyan text */
+
+  /* Interactive states */
+  --color-hover: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  --color-active: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  --color-focus: color-mix(in srgb, var(--color-primary) 15%, transparent);
+
+  /* Heatmap color schemes - Unified with brand */
+  --color-heatmap-blue: #2c7bb6;
+  --color-heatmap-cyan: #abd9e9;
+  --color-heatmap-yellow: #ffffbf;
+  --color-heatmap-orange: #fdae61;
+  --color-heatmap-red: #d7191c;
+  
+  --color-heatmap-green-light: #ffffd9;
+  --color-heatmap-green-1: #edf8b1;
+  --color-heatmap-green-2: #c7e9b4;
+  --color-heatmap-green-3: #7fcdbb;
+  --color-heatmap-green-4: #41b6c4;
+
+  /* Well plate colors - Unified with brand */
+  --color-well-empty: #f8f9fa;
+  --color-well-low: #4CAF50; /* Green - low amounts */
+  --color-well-medium: #FF9800; /* Orange - medium amounts */
+  --color-well-high: #F44336; /* Red - high amounts */
+  --color-well-very-high: #9C27B0; /* Purple - very high amounts */
+  --color-well-default: #2196F3; /* Blue - default */
 
   /* Sizing & radius */
   --radius-xs: 0.125rem;
@@ -72,8 +118,12 @@
     --color-background: #121212;
     --color-surface: #1e1e1e;
     --color-border: #2a2a2a;
+    --color-border-light: #333;
+    --color-border-dark: #444;
     --color-text-primary: #f8f9fa;
     --color-text-secondary: #cfcfcf;
+    --color-text-muted: #aaa;
+    --color-text-light: #888;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
     --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.6);
     --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.6);
@@ -85,8 +135,12 @@
   --color-background: #121212;
   --color-surface: #1e1e1e;
   --color-border: #2a2a2a;
+  --color-border-light: #333;
+  --color-border-dark: #444;
   --color-text-primary: #f8f9fa;
   --color-text-secondary: #cfcfcf;
+  --color-text-muted: #aaa;
+  --color-text-light: #888;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
   --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.6);
@@ -619,7 +673,7 @@ a:hover {
 }
 
 /* =====================================================
-   96-Well Plate Styles
+   Well Plate Styles
    ===================================================== */
 .materials-section,
 .plate-section {
@@ -630,7 +684,7 @@ a:hover {
 }
 
 .materials-table-container {
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
 }
 
@@ -662,18 +716,104 @@ a:hover {
   overflow-x: auto;
 }
 
-.column-headers {
-  display: grid;
-  grid-template-columns: 40px repeat(12, 1fr);
-  gap: 2px;
-  margin-bottom: 2px;
+.plate-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
 
-.plate-grid {
-  display: grid;
-  grid-template-columns: 40px repeat(12, 1fr);
-  gap: 2px;
+.plate-type-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
 }
+
+.plate-type-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.plate-type-toggle {
+  display: flex;
+  gap: var(--space-xs);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.plate-type-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 60px;
+}
+
+.plate-type-btn:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-background) 90%);
+}
+
+.plate-type-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.plate-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Responsive design for plate type selector */
+@media (max-width: 640px) {
+  .plate-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-md);
+  }
+  
+  .plate-type-selector {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .plate-type-toggle {
+    flex: 1;
+    max-width: 200px;
+  }
+  
+  .plate-type-btn {
+    min-width: 60px;
+    padding: var(--space-xs) var(--space-sm);
+  }
+  
+  /* Adjust plate container for mobile */
+  .plate-container {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    overflow-x: auto;
+  }
+  
+  .plate-grid.plate-24,
+  .column-headers.plate-24 {
+    position: relative;
+    top: auto;
+    left: auto;
+  }
+}
+
+/* Dynamic grid styles are handled in index.css */
 
 .plate-row {
   display: contents;

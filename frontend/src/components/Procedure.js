@@ -12,32 +12,85 @@ const Procedure = () => {
   const [clickedWell, setClickedWell] = useState(null);
   const [showWellModal, setShowWellModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [plateType, setPlateType] = useState("96"); // "96" or "24"
+  const [showPlateSwitchWarning, setShowPlateSwitchWarning] = useState(false);
+  const [pendingPlateType, setPendingPlateType] = useState(null);
 
   const { showError } = useToast();
 
-  // Generate 96 wells (8 rows x 12 columns)
-  const wells = [];
-  const rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
-  const columns = [
-    "1",
-    "2",
-    "3",
-    "4",
-    "5",
-    "6",
-    "7",
-    "8",
-    "9",
-    "10",
-    "11",
-    "12",
-  ];
+  // Generate wells based on plate type
+  const getPlateConfig = (type) => {
+    if (type === "24") {
+      return {
+        rows: ["A", "B", "C", "D"],
+        columns: ["1", "2", "3", "4", "5", "6"],
+        wells: []
+      };
+    } else {
+      return {
+        rows: ["A", "B", "C", "D", "E", "F", "G", "H"],
+        columns: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+        wells: []
+      };
+    }
+  };
 
+  const plateConfig = getPlateConfig(plateType);
+  const { rows, columns } = plateConfig;
+  
+  // Generate wells array
+  const wells = [];
   for (let row of rows) {
     for (let col of columns) {
       wells.push(`${row}${col}`);
     }
   }
+
+  // Handle plate type switching with warning
+  const handlePlateTypeSwitch = (newPlateType) => {
+    if (newPlateType === plateType) return;
+    
+    // Check if there are any dispensed materials
+    const hasDispensedMaterials = procedure.some(wellData => wellData.materials.length > 0);
+    
+    if (hasDispensedMaterials) {
+      // Show warning modal
+      setPendingPlateType(newPlateType);
+      setShowPlateSwitchWarning(true);
+    } else {
+      // No materials dispensed, switch directly
+      switchPlateType(newPlateType);
+    }
+  };
+
+  const switchPlateType = (newPlateType) => {
+    setPlateType(newPlateType);
+    setSelectedWells([]);
+    setSelectedMaterial(null);
+    setAmount("");
+    // Clear all procedure data
+    setProcedure([]);
+  };
+
+  const confirmPlateSwitch = async () => {
+    try {
+      // Clear procedure data from backend
+      await axios.post("/api/experiment/procedure", []);
+      switchPlateType(pendingPlateType);
+      setShowPlateSwitchWarning(false);
+      setPendingPlateType(null);
+    } catch (error) {
+      console.error("Error clearing procedure:", error);
+      showError("Error clearing procedure data: " + error.message);
+    }
+  };
+
+  const cancelPlateSwitch = () => {
+    setShowPlateSwitchWarning(false);
+    setPendingPlateType(null);
+  };
+
+
 
   useEffect(() => {
     loadProcedure();
@@ -377,11 +430,11 @@ const Procedure = () => {
 
   const getCategoryColor = (category) => {
     switch (category) {
-      case 'low': return '#4CAF50';      // Green - low amounts
-      case 'medium': return '#FF9800';   // Orange - medium amounts  
-      case 'high': return '#F44336';     // Red - high amounts
-      case 'very-high': return '#9C27B0'; // Purple - very high amounts
-      default: return '#2196F3';         // Blue - default
+      case 'low': return 'var(--color-well-low)';      // Green - low amounts
+      case 'medium': return 'var(--color-well-medium)';   // Orange - medium amounts  
+      case 'high': return 'var(--color-well-high)';     // Red - high amounts
+      case 'very-high': return 'var(--color-well-very-high)'; // Purple - very high amounts
+      default: return 'var(--color-well-default)';         // Blue - default
     }
   };
 
@@ -600,12 +653,32 @@ const Procedure = () => {
           )}
         </div>
 
-        {/* 96-Well Plate */}
+        {/* Well Plate */}
         <div className="plate-section">
-          <h3>96-Well Plate</h3>
+          <div className="plate-header">
+            <h3>{plateType}-Well Plate</h3>
+            <div className="plate-type-selector">
+              <div className="plate-type-toggle">
+                <button
+                  className={`plate-type-btn ${plateType === "96" ? "active" : ""}`}
+                  onClick={() => handlePlateTypeSwitch("96")}
+                  title="96-Well Plate (8×12)"
+                >
+                  <span className="plate-label">96-Well</span>
+                </button>
+                <button
+                  className={`plate-type-btn ${plateType === "24" ? "active" : ""}`}
+                  onClick={() => handlePlateTypeSwitch("24")}
+                  title="24-Well Plate (4×6)"
+                >
+                  <span className="plate-label">24-Well</span>
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="plate-container">
             {/* Column Headers */}
-            <div className="column-headers">
+            <div className={`column-headers plate-${plateType}`}>
               <div
                 className="corner-cell select-all-button"
                 onClick={(e) => handleSelectAllWells(e)}
@@ -626,7 +699,7 @@ const Procedure = () => {
             </div>
 
             {/* Row Headers and Wells */}
-            <div className="plate-grid">
+            <div className={`plate-grid plate-${plateType}`}>
               {rows.map((row) => (
                 <div key={row} className="plate-row">
                   <div
@@ -675,7 +748,7 @@ const Procedure = () => {
         <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "1000px", width: "95%" }}>
             <div className="modal-header">
-              <h3>96-Well Plate Help</h3>
+              <h3>{plateType}-Well Plate Help</h3>
               <button
                 className="modal-close"
                 onClick={() => setShowHelpModal(false)}
@@ -684,7 +757,7 @@ const Procedure = () => {
               </button>
             </div>
             <div className="modal-body" style={{ textAlign: "left" }}>
-              <h4>How to use the 96-Well Plate:</h4>
+              <h4>How to use the {plateType}-Well Plate:</h4>
               <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
                 <li>
                   <strong>Select Material:</strong> Click on a material row in
@@ -695,9 +768,9 @@ const Procedure = () => {
                   select them, or use the following methods:
                 </li>
                 <ul style={{ paddingLeft: "20px", marginTop: "5px" }}>
-                  <li>Click on row letters (A-H) to select entire rows</li>
+                  <li>Click on row letters ({plateType === "96" ? "A-H" : "A-D"}) to select entire rows</li>
                   <li>
-                    Click on column numbers (1-12) to select entire columns
+                    Click on column numbers ({plateType === "96" ? "1-12" : "1-6"}) to select entire columns
                   </li>
                   <li>
                     Hold Ctrl/Cmd and click to select multiple rows/columns
@@ -787,6 +860,33 @@ const Procedure = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plate Switch Warning Modal */}
+      {showPlateSwitchWarning && (
+        <div className="modal-overlay" onClick={cancelPlateSwitch}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-body">
+              <p>
+                Switching to {pendingPlateType}-well plate will clear all dispensed materials.
+              </p>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              <button
+                className="btn btn-secondary"
+                onClick={cancelPlateSwitch}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={confirmPlateSwitch}
+              >
+                Switch to {pendingPlateType}-Well Plate
+              </button>
             </div>
           </div>
         </div>

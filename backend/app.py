@@ -334,6 +334,83 @@ def search_inventory():
     
     return jsonify(combined.to_dict('records') if not combined.empty else [])
 
+@app.route('/api/solvent/search', methods=['GET'])
+def search_solvents():
+    """Search solvents in the Solvent.xlsx file"""
+    query = request.args.get('q', '').lower()
+    search_type = request.args.get('type', 'all')  # all, name, alias, cas, boiling_point, class
+    class_filter = request.args.get('class_filter', '').lower()
+    bp_filter = request.args.get('bp_filter', '')
+    
+    solvent_path = os.path.join(os.path.dirname(__file__), '..', 'Solvent.xlsx')
+    
+    if not os.path.exists(solvent_path):
+        return jsonify({'error': 'Solvent database not found'}), 404
+    
+    try:
+        df = pd.read_excel(solvent_path)
+        
+        # Handle NaN values
+        df = df.fillna('')
+        
+        # Start with all data
+        results = df.copy()
+        
+        # Apply text search if query provided
+        if query and search_type == 'all':
+            text_filter = (
+                df['Name'].astype(str).str.lower().str.contains(query, na=False) |
+                df['Alias'].astype(str).str.lower().str.contains(query, na=False) |
+                df['CAS Number'].astype(str).str.lower().str.contains(query, na=False)
+            )
+            results = results[text_filter]
+        
+        # Apply class filter if provided
+        if class_filter:
+            class_mask = df['Chemical Class'].astype(str).str.lower().str.contains(class_filter, na=False)
+            results = results[class_mask]
+        
+        # Apply boiling point filter if provided
+        if bp_filter:
+            try:
+                if bp_filter.startswith('>'):
+                    bp_value = float(bp_filter[1:].strip())
+                    bp_mask = df['Boiling point'] > bp_value
+                elif bp_filter.startswith('<'):
+                    bp_value = float(bp_filter[1:].strip())
+                    bp_mask = df['Boiling point'] < bp_value
+                else:
+                    # Try to parse as exact value
+                    bp_value = float(bp_filter)
+                    tolerance = 5  # ±5°C tolerance
+                    bp_mask = (df['Boiling point'] >= bp_value - tolerance) & (df['Boiling point'] <= bp_value + tolerance)
+                
+                results = results[bp_mask]
+            except ValueError:
+                # If boiling point filter is invalid, return empty results
+                results = pd.DataFrame()
+        
+        # Convert to list of dictionaries with consistent field names
+        solvent_results = []
+        for _, row in results.iterrows():
+            solvent_results.append({
+                'name': row['Name'],
+                'alias': row['Alias'],
+                'cas': row['CAS Number'],
+                'molecular_weight': row['Molecular_weight'],
+                'smiles': row['SMILES'],
+                'boiling_point': row['Boiling point'],
+                'chemical_class': row['Chemical Class'],
+                'density': row['Density (g/mL)'],
+                'tier': row['Tier'],
+                'source': 'solvent_database'
+            })
+        
+        return jsonify(solvent_results)
+        
+    except Exception as e:
+        return jsonify({'error': f'Error searching solvents: {str(e)}'}), 500
+
 @app.route('/api/inventory/private/add', methods=['POST'])
 def add_to_private_inventory():
     chemical = request.json
@@ -651,6 +728,121 @@ def upload_analytical_data():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+@app.route('/api/experiment/materials/upload', methods=['POST'])
+def upload_materials_from_excel():
+    """Upload materials from Excel file"""
+    try:
+        print("Materials upload endpoint called")
+        
+        if 'file' not in request.files:
+            print("No file in request.files")
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        print(f"File received: {file.filename}")
+        
+        if file.filename == '':
+            print("Empty filename")
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Check file extension
+        allowed_extensions = {'.xlsx', '.xls'}
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        print(f"File extension: {file_ext}")
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Read the Excel file
+        try:
+            print("Attempting to read Excel file")
+            excel_file = pd.ExcelFile(file)
+            print(f"Excel sheets: {excel_file.sheet_names}")
+        except Exception as e:
+            print(f"Error reading Excel file: {str(e)}")
+            return jsonify({'error': f'Error reading Excel file: {str(e)}'}), 400
+        
+        # Look for Materials sheet
+        if 'Materials' not in excel_file.sheet_names:
+            return jsonify({'error': 'No "Materials" sheet found in the Excel file'}), 400
+        
+        # Read the Materials sheet
+        try:
+            materials_df = pd.read_excel(file, sheet_name='Materials')
+            print(f"Materials sheet read successfully. Shape: {materials_df.shape}")
+        except Exception as e:
+            print(f"Error reading Materials sheet: {str(e)}")
+            return jsonify({'error': f'Error reading Materials sheet: {str(e)}'}), 400
+        
+        # Extract materials from the sheet
+        materials = []
+        for index, row in materials_df.iterrows():
+            # Skip empty rows
+            if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() == '':
+                continue
+            
+            # Extract material data based on expected columns
+            material = {
+                'name': str(row.get('Name', row.iloc[1] if len(row) > 1 else '')).strip(),
+                'alias': str(row.get('Alias', '')).strip(),
+                'cas': str(row.get('CAS', '')).strip(),
+                'smiles': str(row.get('SMILES', '')).strip(),
+                'molecular_weight': str(row.get('Molecular Weight', '')).strip(),
+                'barcode': str(row.get('Lot number', '')).strip(),
+                'role': str(row.get('Role', '')).strip(),
+                'source': 'excel_upload'
+            }
+            
+            # Only add if name is not empty
+            if material['name'] and material['name'] != 'nan':
+                materials.append(material)
+        
+        if not materials:
+            return jsonify({'error': 'No valid materials found in the Materials sheet'}), 400
+        
+        print(f"Extracted {len(materials)} materials from Excel file")
+        
+        # Get current materials
+        current_materials = current_experiment.get('materials', [])
+        
+        # Check for duplicates and add new materials
+        added_materials = []
+        skipped_materials = []
+        
+        for material in materials:
+            # Check if material already exists (by name, CAS, or SMILES)
+            is_duplicate = any(
+                existing['name'] == material['name'] or
+                (existing.get('cas') and material.get('cas') and existing['cas'] == material['cas']) or
+                (existing.get('smiles') and material.get('smiles') and existing['smiles'] == material['smiles'])
+                for existing in current_materials
+            )
+            
+            if is_duplicate:
+                skipped_materials.append(material['alias'] or material['name'])
+            else:
+                added_materials.append(material)
+                current_materials.append(material)
+        
+        # Update the experiment materials
+        current_experiment['materials'] = current_materials
+        
+        return jsonify({
+            'message': 'Materials uploaded successfully',
+            'filename': file.filename,
+            'total_materials': len(materials),
+            'added_materials': len(added_materials),
+            'skipped_materials': len(skipped_materials),
+            'added_material_names': [m['alias'] or m['name'] for m in added_materials],
+            'skipped_material_names': skipped_materials
+        }), 200
+        
+    except Exception as e:
+        print(f"Unexpected error in materials upload: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Materials upload failed: {str(e)}'}), 500
 
 @app.route('/api/experiment/results', methods=['GET', 'POST'])
 def experiment_results():

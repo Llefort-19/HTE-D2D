@@ -9,6 +9,7 @@ const Procedure = () => {
   const [selectedWells, setSelectedWells] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [amount, setAmount] = useState("");
+  const [unit, setUnit] = useState("μmol");
   const [clickedWell, setClickedWell] = useState(null);
   const [showWellModal, setShowWellModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -202,6 +203,13 @@ const Procedure = () => {
       // Otherwise, select the new material
       setSelectedMaterial(material);
       setAmount("");
+      
+      // Set unit based on material role
+      if (material.role === "Solvent") {
+        setUnit("μL");
+      } else {
+        setUnit("μmol");
+      }
     }
   };
 
@@ -310,6 +318,7 @@ const Procedure = () => {
       molecular_weight: selectedMaterial.molecular_weight,
       barcode: selectedMaterial.barcode,
       amount: parseFloat(amount),
+      unit: unit,
     };
 
     // Create the updated procedure data directly
@@ -347,8 +356,7 @@ const Procedure = () => {
       showError("Error saving changes: " + error.message);
     }
 
-    // Clear selection
-    setSelectedMaterial(null);
+    // Keep the selected material active, but clear wells and amount for next dispense
     setSelectedWells([]);
     setAmount("");
   };
@@ -513,7 +521,7 @@ const Procedure = () => {
 
     return (
       <div className="well-content">
-        <div className="well-material-amount">
+        <div className="well-material-amount" style={{ fontSize: "10px", fontWeight: "bold" }}>
           {selectedMaterialInWell.amount}
         </div>
       </div>
@@ -527,8 +535,10 @@ const Procedure = () => {
     materials.forEach((material) => {
       totals[material.name] = {
         umol: 0,
+        μL: 0,
         mg: 0,
         hasMolecularWeight: !!material.molecular_weight,
+        unit: "μmol", // default unit
       };
     });
 
@@ -536,7 +546,14 @@ const Procedure = () => {
     procedure.forEach((wellData) => {
       wellData.materials.forEach((material) => {
         if (totals[material.name] !== undefined) {
-          totals[material.name].umol += material.amount || 0;
+          const unit = material.unit || "μmol";
+          if (unit === "μL") {
+            totals[material.name].μL += material.amount || 0;
+            totals[material.name].unit = "μL";
+          } else {
+            totals[material.name].umol += material.amount || 0;
+            totals[material.name].unit = "μmol";
+          }
         }
       });
     });
@@ -591,13 +608,16 @@ const Procedure = () => {
                       <td>{material.alias}</td>
                       <td>{material.cas}</td>
                       <td className="total-amount">
-                        {totalData.umol > 0 ? (
+                        {(totalData.umol > 0 || totalData.μL > 0) ? (
                           <div className="amount-display">
                             <div className="amount-umol">
-                              {totalData.umol.toFixed(1)} μmol
+                              {totalData.unit === "μL" 
+                                ? `${totalData.μL.toFixed(1)} μL`
+                                : `${totalData.umol.toFixed(1)} μmol`
+                              }
                             </div>
                             <div className="amount-mg">
-                              {totalData.hasMolecularWeight
+                              {totalData.hasMolecularWeight && totalData.unit === "μmol"
                                 ? `${totalData.mg.toFixed(1)} mg`
                                 : "--"}
                             </div>
@@ -622,7 +642,7 @@ const Procedure = () => {
                   type="number"
                   step="0.001"
                   className="form-control"
-                  placeholder="Amount (μmol)"
+                  placeholder={`Amount (${unit})`}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                 />
@@ -782,7 +802,7 @@ const Procedure = () => {
                   <li>Click "ALL" to select all wells</li>
                 </ul>
                 <li>
-                  <strong>Add Material:</strong> Enter the amount in μmol and
+                  <strong>Add Material:</strong> Enter the amount in the appropriate unit (μmol for materials, μL for solvents) and
                   click "Add to wells" to dispense the selected material. Multiple additions of the same chemical are automatically summed.
                 </li>
                 <li>
@@ -852,7 +872,7 @@ const Procedure = () => {
                             CAS: {material.cas}
                           </span>
                           <span className="material-amount">
-                            Amount: {material.amount} μmol
+                            Amount: {material.amount} {material.unit || "μmol"}
                           </span>
                         </div>
                       </div>

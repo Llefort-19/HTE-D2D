@@ -11,7 +11,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
   const tabs = [
     { id: "context", label: "Experiment Context" },
     { id: "materials", label: "Materials" },
-    { id: "procedure", label: "Well Plate" },
+    { id: "procedure", label: "Design" },
     { id: "analytical", label: "Analytical Data" },
     { id: "results", label: "Results" },
     { id: "heatmap", label: "Heatmap" },

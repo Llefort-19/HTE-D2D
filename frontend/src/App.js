@@ -22,7 +22,7 @@ function App() {
       component: ExperimentContext,
     },
     { id: "materials", label: "Materials", component: Materials },
-    { id: "procedure", label: "Well Plate", component: Procedure },
+    { id: "procedure", label: "Design", component: Procedure },
     { id: "analytical", label: "Analytical Data", component: AnalyticalData },
     { id: "results", label: "Results", component: Results },
     { id: "heatmap", label: "Heatmap", component: Heatmap },

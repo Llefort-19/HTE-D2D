@@ -34,6 +34,15 @@ const Materials = () => {
   const [showUploadHelp, setShowUploadHelp] = useState(false);
   const [selectedUploadFile, setSelectedUploadFile] = useState(null);
   const [uploadingMaterials, setUploadingMaterials] = useState(false);
+  const [showKitUploadModal, setShowKitUploadModal] = useState(false);
+  const [selectedKitFile, setSelectedKitFile] = useState(null);
+  const [uploadingKit, setUploadingKit] = useState(false);
+  const [showKitPositionModal, setShowKitPositionModal] = useState(false);
+  const [kitData, setKitData] = useState(null);
+  const [kitSize, setKitSize] = useState(null);
+
+  const [destinationPlateType, setDestinationPlateType] = useState("96");
+  const [selectedVisualPositions, setSelectedVisualPositions] = useState([]);
   const [newMaterial, setNewMaterial] = useState({
     name: "",
     alias: "",
@@ -56,6 +65,19 @@ const Materials = () => {
   ];
 
   const { showSuccess, showError } = useToast();
+
+  // Auto-select A1 for exact matches and default A1 placements
+  useEffect(() => {
+    if (showKitPositionModal && kitSize && destinationPlateType) {
+      const { rows: kitRows, columns: kitCols } = kitSize;
+      const placementStrategy = getPlacementStrategy(kitRows, kitCols, destinationPlateType);
+      
+      if ((placementStrategy.strategy === 'exact_match' || placementStrategy.strategy === 'default_a1') 
+          && selectedVisualPositions.length === 0) {
+        setSelectedVisualPositions(['A1']);
+      }
+    }
+  }, [showKitPositionModal, kitSize, destinationPlateType, selectedVisualPositions.length]);
 
   useEffect(() => {
     loadMaterials();
@@ -761,6 +783,1167 @@ const Materials = () => {
     }
   };
 
+  const handleKitFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedKitFile(file);
+    }
+  };
+
+  const handleUploadKit = async () => {
+    if (!selectedKitFile) {
+      showError("Please select a kit file to upload");
+      return;
+    }
+
+    setUploadingKit(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedKitFile);
+      
+      const response = await axios.post("/api/experiment/kit/analyze", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const { materials, design, kit_size } = response.data;
+      setKitData({ materials, design });
+      setKitSize(kit_size);
+      
+      // Close kit upload modal and show positioning modal
+      setShowKitUploadModal(false);
+      setShowKitPositionModal(true);
+      
+    } catch (error) {
+      console.error("Error analyzing kit:", error);
+      showError("Error analyzing kit: " + (error.response?.data?.error || error.message));
+    } finally {
+      setUploadingKit(false);
+    }
+  };
+
+  const closeKitUploadModal = () => {
+    setShowKitUploadModal(false);
+    setSelectedKitFile(null);
+    // Clear the file input
+    const fileInput = document.getElementById('kit-upload-input');
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  const updateProcedurePlateType = async (plateType) => {
+    try {
+      // First get current procedure data
+      const procedureResponse = await axios.get("/api/experiment/procedure");
+      const currentProcedure = procedureResponse.data || [];
+      
+      // Send update to backend with the new plate type
+      await axios.post("/api/experiment/procedure/update-plate-type", {
+        plate_type: plateType,
+        current_procedure: currentProcedure
+      });
+      
+      console.log(`Updated procedure plate type to ${plateType}`);
+    } catch (error) {
+      console.error("Error updating procedure plate type:", error);
+      // Don't show error to user as this is a background operation
+    }
+  };
+
+  const closeKitPositionModal = () => {
+    setShowKitPositionModal(false);
+    setKitData(null);
+    setKitSize(null);
+    setDestinationPlateType("96");
+    setSelectedVisualPositions([]);
+  };
+
+  const applyKitToExperiment = async () => {
+    if (!kitData) {
+      showError("No kit data available");
+      return;
+    }
+    
+    // Convert visual positions to backend format
+    const backendPosition = convertVisualPositionsToBackendFormat();
+    if (!backendPosition) {
+      showError("Please select a position for your kit");
+      return;
+    }
+
+    try {
+      const response = await axios.post("/api/experiment/kit/apply", {
+        materials: kitData.materials,
+        design: kitData.design,
+        position: backendPosition,
+        kit_size: kitSize,
+        destination_plate: destinationPlateType
+      });
+
+      // Update the procedure plate type to match the destination plate
+      await updateProcedurePlateType(destinationPlateType);
+
+      // Reload materials to get the updated list
+      await loadMaterials();
+      
+      showSuccess("Kit successfully applied to experiment!");
+      closeKitPositionModal();
+      
+    } catch (error) {
+      console.error("Error applying kit:", error);
+      showError("Error applying kit: " + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const getPlateConfig = (plateType) => {
+    const configs = {
+      "24": { rows: 4, cols: 6, name: "24-Well Plate" },
+      "48": { rows: 6, cols: 8, name: "48-Well Plate" },
+      "96": { rows: 8, cols: 12, name: "96-Well Plate" }
+    };
+    return configs[plateType];
+  };
+
+  const canKitFitOnPlate = (kitRows, kitCols, plateType) => {
+    const plate = getPlateConfig(plateType);
+    return kitRows <= plate.rows && kitCols <= plate.cols;
+  };
+
+  const getPlacementStrategy = (kitRows, kitCols, plateType) => {
+    const plate = getPlateConfig(plateType);
+    
+    // If kit matches plate dimensions exactly, only one placement (A1)
+    if (kitRows === plate.rows && kitCols === plate.cols) {
+      return { strategy: 'exact_match', blocks: [{ id: 'A1', label: 'Full Plate' }] };
+    }
+    
+    // If kit matches plate width but not height (e.g., 1x12 kit on 96-well)
+    if (kitCols === plate.cols && kitRows < plate.rows) {
+      const blocks = [];
+      const maxBlocks = Math.floor(plate.rows / kitRows); // Number of kit-sized blocks that fit
+      for (let i = 0; i < maxBlocks; i++) {
+        const rowStartIndex = i * kitRows; // Start at multiple of kit size
+        const rowStart = String.fromCharCode(65 + rowStartIndex); // A, C, E, G for 2-row kit
+        const rowEnd = String.fromCharCode(65 + rowStartIndex + kitRows - 1); // B, D, F, H for 2-row kit
+        const label = kitRows === 1 ? `Row ${rowStart}` : `Rows ${rowStart}-${rowEnd}`;
+        blocks.push({ id: `row-${rowStart}`, label, startRow: rowStart });
+      }
+      return { strategy: 'row_blocks', blocks };
+    }
+    
+    // If kit matches plate height but not width (e.g., 8x1 kit on 96-well)
+    if (kitRows === plate.rows && kitCols < plate.cols) {
+      const blocks = [];
+      const maxBlocks = Math.floor(plate.cols / kitCols); // Number of kit-sized blocks that fit
+      for (let i = 0; i < maxBlocks; i++) {
+        const colStartIndex = i * kitCols + 1; // Start at multiple of kit size (1-based)
+        const colEnd = colStartIndex + kitCols - 1;
+        const label = kitCols === 1 ? `Column ${colStartIndex}` : `Columns ${colStartIndex}-${colEnd}`;
+        blocks.push({ id: `col-${colStartIndex}`, label, startCol: colStartIndex });
+      }
+      return { strategy: 'col_blocks', blocks };
+    }
+    
+    // If kit is smaller than plate in both dimensions (e.g., 4x6 kit on 96-well or 2x4 kit)
+    if (kitRows < plate.rows && kitCols < plate.cols) {
+      // Calculate how many kit instances can fit
+      const rowBlocks = Math.floor(plate.rows / kitRows);
+      const colBlocks = Math.floor(plate.cols / kitCols);
+      const totalBlocks = rowBlocks * colBlocks;
+      
+      // If more than one kit instance can fit, show block placement
+      if (totalBlocks > 1) {
+        const blocks = [];
+        for (let r = 0; r < rowBlocks; r++) {
+          for (let c = 0; c < colBlocks; c++) {
+            const startRow = String.fromCharCode(65 + r * kitRows);
+            const startCol = c * kitCols + 1;
+            
+            blocks.push({ 
+              id: `block-${startRow}${startCol}`, 
+              startRow, 
+              startCol: startCol,
+              quadrant: { row: r, col: c }
+            });
+          }
+        }
+        return { strategy: 'block_placement', blocks };
+      } else {
+        // Only one kit instance fits, default to A1 placement
+        return { strategy: 'default_a1', blocks: [{ id: 'A1', label: 'Position A1' }] };
+      }
+    }
+    
+    // Default fallback
+    return { strategy: 'default_a1', blocks: [{ id: 'A1', label: 'Position A1' }] };
+  };
+
+  const renderDestinationPlateSelector = () => {
+    if (!kitSize) return null;
+    
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    
+    return (
+      <div style={{ marginBottom: "25px" }}>
+        <h4>Select Destination Plate:</h4>
+        <div style={{ display: "flex", gap: "15px", marginTop: "10px", justifyContent: "center" }}>
+          {["24", "48", "96"].map(plateType => {
+            const canFit = canKitFitOnPlate(kitRows, kitCols, plateType);
+            const plateConfig = getPlateConfig(plateType);
+            
+            return (
+              <button
+                key={plateType}
+                className={`btn ${destinationPlateType === plateType ? "btn-primary" : "btn-outline-secondary"}`}
+                onClick={() => {
+                  if (canFit) {
+                    setDestinationPlateType(plateType);
+                    setSelectedVisualPositions([]);
+                  }
+                }}
+                disabled={!canFit}
+                style={{ 
+                  fontSize: "14px", 
+                  padding: "10px 15px",
+                  opacity: canFit ? 1 : 0.5,
+                  cursor: canFit ? "pointer" : "not-allowed"
+                }}
+                title={canFit ? 
+                  `${plateConfig.name} (${plateConfig.rows}×${plateConfig.cols})` : 
+                  `Kit too large for ${plateConfig.name}`
+                }
+              >
+                {plateConfig.name}
+                <br />
+                <small>({plateConfig.rows}×{plateConfig.cols})</small>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderVisualPlateGrid = () => {
+    if (!kitSize || !destinationPlateType) return null;
+    
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    const plateConfig = getPlateConfig(destinationPlateType);
+    
+    // For 4x6 kit on 96-well plate - show quadrant selection
+    if (kitRows === 4 && kitCols === 6 && destinationPlateType === "96") {
+      return renderQuadrantSelection();
+    }
+    
+    // For 1x12 kit on 96-well plate - show row selection
+    if (kitRows === 1 && kitCols === 12 && destinationPlateType === "96") {
+      return renderRowSelection();
+    }
+    
+    // For 8x1 kit on 96-well plate - show column selection
+    if (kitRows === 8 && kitCols === 1 && destinationPlateType === "96") {
+      return renderColumnSelection();
+    }
+    
+    // For other combinations - show general grid positioning
+    return renderGeneralGridPositioning();
+  };
+
+  const renderQuadrantSelection = () => {
+    const quadrants = [
+      { id: "top-left", name: "Top-Left", description: "A1-D6", position: { top: 0, left: 0 } },
+      { id: "top-right", name: "Top-Right", description: "A7-D12", position: { top: 0, left: 1 } },
+      { id: "bottom-left", name: "Bottom-Left", description: "E1-H6", position: { top: 1, left: 0 } },
+      { id: "bottom-right", name: "Bottom-Right", description: "E7-H12", position: { top: 1, left: 1 } }
+    ];
+    
+    return (
+      <div>
+        <h4>Select Quadrants for Kit Placement:</h4>
+        <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", marginBottom: "15px" }}>
+          Click on one or more quadrants to place your 4×6 kit. Multiple selections will create copies of the kit.
+        </p>
+        
+        {/* Visual 96-well plate representation */}
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: "1fr 1fr", 
+          gridTemplateRows: "1fr 1fr",
+          gap: "8px", 
+          maxWidth: "400px", 
+          margin: "0 auto 20px",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px",
+          backgroundColor: "var(--color-surface)"
+        }}>
+          {quadrants.map(quadrant => {
+            const isSelected = selectedVisualPositions.includes(quadrant.id);
+            
+            return (
+              <div
+                key={quadrant.id}
+                style={{
+                  border: isSelected ? "3px solid var(--color-primary)" : "2px solid var(--color-border)",
+                  borderRadius: "8px",
+                  padding: "20px",
+                  backgroundColor: isSelected ? "var(--color-primary-light)" : "var(--color-background)",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.2s ease",
+                  position: "relative"
+                }}
+                onClick={() => toggleVisualPosition(quadrant.id)}
+              >
+                <div style={{ fontWeight: "bold", fontSize: "14px" }}>{quadrant.name}</div>
+                <div style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "5px" }}>
+                  {quadrant.description}
+                </div>
+                {isSelected && (
+                  <div style={{
+                    position: "absolute",
+                    top: "5px",
+                    right: "5px",
+                    width: "20px",
+                    height: "20px",
+                    backgroundColor: "var(--color-primary)",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    fontSize: "12px",
+                    fontWeight: "bold"
+                  }}>
+                    ✓
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        
+        <div style={{ textAlign: "center", fontSize: "14px", color: "var(--color-text-secondary)" }}>
+          Selected: {selectedVisualPositions.length} quadrant{selectedVisualPositions.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRowSelection = () => {
+    const rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    
+    return (
+      <div>
+        <h4>Select Row for Kit Placement:</h4>
+        <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", marginBottom: "15px" }}>
+          Click on a row to place your 1×12 kit across columns 1-12.
+        </p>
+        
+        {/* Visual 96-well plate representation */}
+        <div style={{ 
+          maxWidth: "500px", 
+          margin: "0 auto 20px",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px",
+          backgroundColor: "var(--color-surface)"
+        }}>
+          {rows.map(row => {
+            const isSelected = selectedVisualPositions.includes(`row-${row}`);
+            
+            return (
+              <div
+                key={row}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  border: isSelected ? "3px solid var(--color-primary)" : "2px solid var(--color-border)",
+                  borderRadius: "6px",
+                  padding: "12px",
+                  marginBottom: "8px",
+                  backgroundColor: isSelected ? "var(--color-primary-light)" : "var(--color-background)",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease"
+                }}
+                onClick={() => setSelectedVisualPositions([`row-${row}`])}
+              >
+                <div style={{ 
+                  fontWeight: "bold", 
+                  fontSize: "16px", 
+                  marginRight: "15px",
+                  minWidth: "30px"
+                }}>
+                  {row}
+                </div>
+                
+                {/* Visual representation of 12 wells */}
+                <div style={{ display: "flex", gap: "4px", flex: 1 }}>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(col => (
+                    <div
+                      key={col}
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "3px",
+                        backgroundColor: isSelected ? "var(--color-primary)" : "var(--color-background)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "10px",
+                        color: isSelected ? "white" : "var(--color-text-secondary)"
+                      }}
+                    >
+                      {col}
+                    </div>
+                  ))}
+                </div>
+                
+                {isSelected && (
+                  <div style={{
+                    marginLeft: "15px",
+                    color: "var(--color-primary)",
+                    fontSize: "18px",
+                    fontWeight: "bold"
+                  }}>
+                    ✓
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderColumnSelection = () => {
+    const columns = [1,2,3,4,5,6,7,8,9,10,11,12];
+    const rows = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    
+    return (
+      <div>
+        <h4>Select Column for Kit Placement:</h4>
+        <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", marginBottom: "15px" }}>
+          Click on a column to place your 8×1 kit down rows A-H.
+        </p>
+        
+        {/* Visual 96-well plate representation */}
+        <div style={{ 
+          maxWidth: "600px", 
+          margin: "0 auto 20px",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px",
+          backgroundColor: "var(--color-surface)"
+        }}>
+          {/* Column headers */}
+          <div style={{ display: "flex", marginBottom: "10px", paddingLeft: "40px" }}>
+            {columns.map(col => {
+              const isSelected = selectedVisualPositions.includes(`col-${col}`);
+              return (
+                <div
+                  key={col}
+                  style={{
+                    width: "30px",
+                    height: "25px",
+                    margin: "0 2px",
+                    border: isSelected ? "2px solid var(--color-primary)" : "1px solid var(--color-border)",
+                    borderRadius: "4px",
+                    backgroundColor: isSelected ? "var(--color-primary)" : "var(--color-background)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "12px",
+                    fontWeight: "bold",
+                    color: isSelected ? "white" : "var(--color-text)",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease"
+                  }}
+                  onClick={() => setSelectedVisualPositions([`col-${col}`])}
+                >
+                  {col}
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Grid representation */}
+          {rows.map(row => (
+            <div key={row} style={{ display: "flex", alignItems: "center", marginBottom: "4px" }}>
+              <div style={{ 
+                fontWeight: "bold", 
+                fontSize: "14px", 
+                minWidth: "30px",
+                marginRight: "10px"
+              }}>
+                {row}
+              </div>
+              
+              {columns.map(col => {
+                const isSelected = selectedVisualPositions.includes(`col-${col}`);
+                return (
+                  <div
+                    key={col}
+                    style={{
+                      width: "30px",
+                      height: "25px",
+                      margin: "0 2px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "3px",
+                      backgroundColor: isSelected ? "var(--color-primary)" : "var(--color-background)",
+                      opacity: isSelected ? 1 : 0.3
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderGeneralGridPositioning = () => {
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    const plateConfig = getPlateConfig(destinationPlateType);
+    
+    return (
+      <div>
+        <h4>Position Your Kit on the Plate:</h4>
+        <p style={{ fontSize: "14px", color: "var(--color-text-secondary)", marginBottom: "15px" }}>
+          Your {kitRows}×{kitCols} kit will be positioned on the {plateConfig.name}. 
+          Click on the starting position for your kit.
+        </p>
+        
+        <div style={{ 
+          maxWidth: "600px", 
+          margin: "0 auto",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px",
+          backgroundColor: "var(--color-surface)"
+        }}>
+          <div style={{ textAlign: "center", color: "var(--color-text-secondary)" }}>
+            General positioning interface for {kitRows}×{kitCols} kit on {plateConfig.name}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const toggleVisualPosition = (position) => {
+    setSelectedVisualPositions(prev => {
+      if (prev.includes(position)) {
+        return prev.filter(p => p !== position);
+      } else {
+        return [...prev, position];
+      }
+    });
+  };
+
+  const convertVisualPositionsToBackendFormat = () => {
+    if (selectedVisualPositions.length === 0) return null;
+    if (!kitSize || !destinationPlateType) return null;
+
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    const placementStrategy = getPlacementStrategy(kitRows, kitCols, destinationPlateType);
+    
+    // Handle different strategies
+    switch (placementStrategy.strategy) {
+      case 'exact_match':
+      case 'default_a1':
+        return { strategy: 'exact_placement', position: 'A1', destination_plate: destinationPlateType };
+        
+      case 'row_blocks':
+        return { 
+          strategy: 'row_placement', 
+          positions: selectedVisualPositions,
+          destination_plate: destinationPlateType,
+          kit_size: { rows: kitRows, cols: kitCols }
+        };
+        
+      case 'col_blocks':
+        return { 
+          strategy: 'col_placement', 
+          positions: selectedVisualPositions,
+          destination_plate: destinationPlateType,
+          kit_size: { rows: kitRows, cols: kitCols }
+        };
+        
+      case 'block_placement':
+        return { 
+          strategy: 'block_placement', 
+          positions: selectedVisualPositions,
+          destination_plate: destinationPlateType,
+          kit_size: { rows: kitRows, cols: kitCols },
+          blocks: placementStrategy.blocks.filter(b => selectedVisualPositions.includes(b.id))
+        };
+        
+      default:
+        // Fallback to old format for compatibility
+        return selectedVisualPositions.length === 1 ? selectedVisualPositions[0] : selectedVisualPositions.join(',');
+    }
+  };
+
+  const handleVisualPositionToggle = (positionId) => {
+    setSelectedVisualPositions(prev => {
+      if (prev.includes(positionId)) {
+        return prev.filter(id => id !== positionId);
+      } else {
+        return [...prev, positionId];
+      }
+    });
+  };
+
+  const renderSchematicPlate = (placementStrategy) => {
+    const { blocks, strategy } = placementStrategy;
+    const plateConfig = getPlateConfig(destinationPlateType);
+    
+    // For row/column blocks, show as schematic plate
+    if (strategy === 'row_blocks') {
+      return renderSchematicRowPlate(blocks, plateConfig);
+    }
+    
+    if (strategy === 'col_blocks') {
+      return renderSchematicColumnPlate(blocks, plateConfig);
+    }
+    
+    // For block placement, show as schematic plate
+    if (strategy === 'block_placement') {
+      return renderSchematicBlockPlate(blocks, plateConfig);
+    }
+    
+    return null;
+  };
+
+  const renderSchematicRowPlate = (blocks, plateConfig) => {
+    const { rows: plateRows, cols: plateCols } = plateConfig;
+    const { rows: kitRows } = kitSize;
+    
+    // Define colors for different row blocks (cycling through quadrant colors)
+    const rowBlockColors = [
+      'var(--color-quadrant-1)', // Light cyan
+      'var(--color-quadrant-2)', // Light green
+      'var(--color-quadrant-3)', // Light mint green
+      'var(--color-quadrant-4)'  // Light teal cyan
+    ];
+    
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "15px" }}>
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: `25px repeat(${plateCols}, 1fr)`,
+          gap: "2px",
+          maxWidth: "600px",
+          backgroundColor: "var(--color-surface)",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px"
+        }}>
+          {/* Header row with column numbers */}
+          <div></div>
+          {Array.from({length: plateCols}, (_, i) => (
+            <div key={`col-${i+1}`} style={{ 
+              textAlign: "center", 
+              fontSize: "12px", 
+              fontWeight: "bold",
+              color: "var(--color-text-secondary)",
+              padding: "5px"
+            }}>
+              {i+1}
+            </div>
+          ))}
+          
+          {/* Plate grid with selectable row blocks */}
+          {Array.from({length: plateRows}, (_, rowIndex) => {
+            const rowLetter = String.fromCharCode(65 + rowIndex);
+            
+            return [
+              // Row letter
+              <div key={`row-${rowLetter}`} style={{ 
+                textAlign: "center", 
+                fontSize: "12px", 
+                fontWeight: "bold",
+                color: "var(--color-text-secondary)",
+                padding: "5px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                {rowLetter}
+              </div>,
+              // Row cells
+              ...Array.from({length: plateCols}, (_, colIndex) => {
+                const wellId = `${rowLetter}${colIndex + 1}`;
+                const blockForThisRow = blocks.find(block => {
+                  const blockStartRow = block.startRow;
+                  const blockRowIndex = rowIndex - (blockStartRow.charCodeAt(0) - 65);
+                  return blockRowIndex >= 0 && blockRowIndex < kitRows;
+                });
+                
+                const isSelected = blockForThisRow && selectedVisualPositions.includes(blockForThisRow.id);
+                const isSelectable = !!blockForThisRow;
+                
+                // Get block color based on block index
+                const blockIndex = blockForThisRow ? blocks.findIndex(b => b.id === blockForThisRow.id) : -1;
+                const blockBgColor = blockForThisRow ? rowBlockColors[blockIndex % rowBlockColors.length] : null;
+                
+                return (
+                  <div
+                    key={wellId}
+                    style={{
+                      width: "25px",
+                      height: "25px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "4px",
+                      backgroundColor: isSelected ? "var(--color-primary)" : 
+                                     blockBgColor ? blockBgColor :
+                                     isSelectable ? "var(--color-primary-light)" : "white",
+                      cursor: isSelectable ? "pointer" : "default",
+                      opacity: isSelectable ? 1 : 0.3,
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                    onClick={() => isSelectable && handleVisualPositionToggle(blockForThisRow.id)}
+                    onMouseEnter={(e) => {
+                      if (isSelectable && !isSelected) {
+                        e.target.style.transform = "scale(1.1)";
+                        e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isSelectable && !isSelected) {
+                        e.target.style.backgroundColor = blockBgColor || "var(--color-primary-light)";
+                        e.target.style.transform = "scale(1)";
+                        e.target.style.boxShadow = "none";
+                      }
+                    }}
+                  >
+                    {isSelected && <span style={{ color: "white", fontSize: "10px" }}>✓</span>}
+                  </div>
+                );
+              })
+            ];
+          }).flat()}
+        </div>
+        
+
+      </div>
+    );
+  };
+
+  const renderSchematicColumnPlate = (blocks, plateConfig) => {
+    const { rows: plateRows, cols: plateCols } = plateConfig;
+    const { columns: kitCols } = kitSize;
+    
+    // Define colors for different column blocks (cycling through quadrant colors)
+    const colBlockColors = [
+      'var(--color-quadrant-1)', // Light cyan
+      'var(--color-quadrant-2)', // Light green
+      'var(--color-quadrant-3)', // Light mint green
+      'var(--color-quadrant-4)'  // Light teal cyan
+    ];
+    
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "15px" }}>
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: `25px repeat(${plateCols}, 1fr)`,
+          gap: "2px",
+          maxWidth: "600px",
+          backgroundColor: "var(--color-surface)",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px"
+        }}>
+          {/* Header row with column numbers */}
+          <div></div>
+          {Array.from({length: plateCols}, (_, colIndex) => {
+            const blockForThisCol = blocks.find(block => {
+              const blockStartCol = block.startCol;
+              const blockColIndex = colIndex + 1 - blockStartCol;
+              return blockColIndex >= 0 && blockColIndex < kitCols;
+            });
+            
+            return (
+              <div key={`col-${colIndex+1}`} style={{ 
+                textAlign: "center", 
+                fontSize: "12px", 
+                fontWeight: "bold",
+                color: blockForThisCol ? "var(--color-primary)" : "var(--color-text-secondary)",
+                padding: "5px",
+                backgroundColor: blockForThisCol && selectedVisualPositions.includes(blockForThisCol.id) ? "var(--color-primary-light)" : "transparent",
+                borderRadius: "3px",
+                cursor: blockForThisCol ? "pointer" : "default"
+              }}
+              onClick={() => blockForThisCol && handleVisualPositionToggle(blockForThisCol.id)}
+            >
+              {colIndex+1}
+            </div>
+            );
+          })}
+          
+          {/* Plate grid with selectable column blocks */}
+          {Array.from({length: plateRows}, (_, rowIndex) => {
+            const rowLetter = String.fromCharCode(65 + rowIndex);
+            
+            return [
+              // Row letter
+              <div key={`row-${rowLetter}`} style={{ 
+                textAlign: "center", 
+                fontSize: "12px", 
+                fontWeight: "bold",
+                color: "var(--color-text-secondary)",
+                padding: "5px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                {rowLetter}
+              </div>,
+              // Row cells
+              ...Array.from({length: plateCols}, (_, colIndex) => {
+                const wellId = `${rowLetter}${colIndex + 1}`;
+                const blockForThisCol = blocks.find(block => {
+                  const blockStartCol = block.startCol;
+                  const blockColIndex = colIndex + 1 - blockStartCol;
+                  return blockColIndex >= 0 && blockColIndex < kitCols;
+                });
+                
+                const isSelected = blockForThisCol && selectedVisualPositions.includes(blockForThisCol.id);
+                const isSelectable = !!blockForThisCol;
+                
+                // Get block color based on block index
+                const blockIndex = blockForThisCol ? blocks.findIndex(b => b.id === blockForThisCol.id) : -1;
+                const blockBgColor = blockForThisCol ? colBlockColors[blockIndex % colBlockColors.length] : null;
+                
+                return (
+                  <div
+                    key={wellId}
+                    style={{
+                      width: "25px",
+                      height: "25px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "4px",
+                      backgroundColor: isSelected ? "var(--color-primary)" : 
+                                     blockBgColor ? blockBgColor :
+                                     isSelectable ? "var(--color-primary-light)" : "white",
+                      cursor: isSelectable ? "pointer" : "default",
+                      opacity: isSelectable ? 1 : 0.3,
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                    onClick={() => isSelectable && handleVisualPositionToggle(blockForThisCol.id)}
+                    onMouseEnter={(e) => {
+                      if (isSelectable && !isSelected) {
+                        e.target.style.transform = "scale(1.1)";
+                        e.target.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isSelectable && !isSelected) {
+                        e.target.style.backgroundColor = blockBgColor || "var(--color-primary-light)";
+                        e.target.style.transform = "scale(1)";
+                        e.target.style.boxShadow = "none";
+                      }
+                    }}
+                  >
+                    {isSelected && <span style={{ color: "white", fontSize: "10px" }}>✓</span>}
+                  </div>
+                );
+              })
+            ];
+          }).flat()}
+        </div>
+        
+
+      </div>
+    );
+  };
+
+  const renderSchematicBlockPlate = (blocks, plateConfig) => {
+    const { rows: plateRows, cols: plateCols } = plateConfig;
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    
+    // Define colors for different blocks (cycling through quadrant colors)
+    const blockColors = [
+      'var(--color-quadrant-1)', // Light cyan
+      'var(--color-quadrant-2)', // Light green
+      'var(--color-quadrant-3)', // Light mint green
+      'var(--color-quadrant-4)'  // Light teal cyan
+    ];
+    
+    // Create a mapping of block IDs to colors
+    const blockColorMap = {};
+    blocks.forEach((block, index) => {
+      blockColorMap[block.id] = blockColors[index % blockColors.length];
+    });
+    
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "15px" }}>
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: `25px repeat(${plateCols}, 1fr)`,
+          gap: "2px",
+          maxWidth: "600px",
+          backgroundColor: "var(--color-surface)",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px",
+          position: "relative"
+        }}>
+          {/* Header row with column numbers */}
+          <div></div>
+          {Array.from({length: plateCols}, (_, i) => (
+            <div key={`col-${i+1}`} style={{ 
+              textAlign: "center", 
+              fontSize: "12px", 
+              fontWeight: "bold",
+              color: "var(--color-text-secondary)",
+              padding: "5px"
+            }}>
+              {i+1}
+            </div>
+          ))}
+          
+          {/* Plate grid with selectable blocks */}
+          {Array.from({length: plateRows}, (_, rowIndex) => {
+            const rowLetter = String.fromCharCode(65 + rowIndex);
+            
+            return [
+              // Row letter
+              <div key={`row-${rowLetter}`} style={{ 
+                textAlign: "center", 
+                fontSize: "12px", 
+                fontWeight: "bold",
+                color: "var(--color-text-secondary)",
+                padding: "5px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                {rowLetter}
+              </div>,
+              // Row cells
+              ...Array.from({length: plateCols}, (_, colIndex) => {
+                const wellId = `${rowLetter}${colIndex + 1}`;
+                
+                // Find which block this well belongs to
+                const blockForThisWell = blocks.find(block => {
+                  const blockStartRow = block.startRow;
+                  const blockStartCol = block.startCol;
+                  const blockRowStart = blockStartRow.charCodeAt(0) - 65;
+                  const blockColStart = blockStartCol - 1;
+                  
+                  return rowIndex >= blockRowStart && 
+                         rowIndex < blockRowStart + kitRows &&
+                         colIndex >= blockColStart && 
+                         colIndex < blockColStart + kitCols;
+                });
+                
+                const isSelected = blockForThisWell && selectedVisualPositions.includes(blockForThisWell.id);
+                const isSelectable = !!blockForThisWell;
+                
+                // Get block background color
+                const blockBgColor = blockForThisWell ? blockColorMap[blockForThisWell.id] : null;
+                
+                return (
+                  <div
+                    key={wellId}
+                    style={{
+                      width: "25px",
+                      height: "25px",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "4px",
+                      backgroundColor: isSelected ? "var(--color-primary)" : 
+                                     blockBgColor ? blockBgColor :
+                                     isSelectable ? "var(--color-primary-light)" : "white",
+                      cursor: isSelectable ? "pointer" : "default",
+                      opacity: isSelectable ? 1 : 0.3,
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: isSelected ? "0 2px 4px rgba(0,0,0,0.2)" : "none"
+                    }}
+                    onClick={() => isSelectable && handleVisualPositionToggle(blockForThisWell.id)}
+                    onMouseEnter={(e) => {
+                      if (isSelectable && !isSelected) {
+                        e.target.style.transform = "scale(1.05)";
+                        e.target.style.boxShadow = "0 2px 4px rgba(0,0,0,0.15)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (isSelectable && !isSelected) {
+                        e.target.style.backgroundColor = blockBgColor || "var(--color-primary-light)";
+                        e.target.style.transform = "scale(1)";
+                        e.target.style.boxShadow = "none";
+                      }
+                    }}
+                  >
+                    {isSelected && <span style={{ color: "white", fontSize: "10px" }}>✓</span>}
+                  </div>
+                );
+              })
+            ];
+          }).flat()}
+        </div>
+
+        
+
+      </div>
+    );
+  };
+
+  const renderSimplePlateSchematic = (isExactMatch) => {
+    const plateConfig = getPlateConfig(destinationPlateType);
+    const { rows: plateRows, cols: plateCols } = plateConfig;
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "15px" }}>
+        <div style={{ 
+          display: "grid", 
+          gridTemplateColumns: `25px repeat(${plateCols}, 1fr)`,
+          gap: "2px",
+          maxWidth: "600px",
+          backgroundColor: "var(--color-surface)",
+          border: "2px solid var(--color-border)",
+          borderRadius: "8px",
+          padding: "15px"
+        }}>
+          {/* Header row with column numbers */}
+          <div></div>
+          {Array.from({length: plateCols}, (_, i) => (
+            <div key={`col-${i+1}`} style={{ 
+              textAlign: "center", 
+              fontSize: "12px", 
+              fontWeight: "bold",
+              color: "var(--color-text-secondary)",
+              padding: "5px"
+            }}>
+              {i+1}
+            </div>
+          ))}
+          
+          {/* Plate grid */}
+          {Array.from({length: plateRows}, (_, rowIndex) => {
+            const rowLetter = String.fromCharCode(65 + rowIndex);
+            
+            return [
+              // Row letter
+              <div key={`row-${rowLetter}`} style={{ 
+                textAlign: "center", 
+                fontSize: "12px", 
+                fontWeight: "bold",
+                color: "var(--color-text-secondary)",
+                padding: "5px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                {rowLetter}
+              </div>,
+              // Row cells
+              ...Array.from({length: plateCols}, (_, colIndex) => {
+                const wellId = `${rowLetter}${colIndex + 1}`;
+                
+                // For exact match, all wells are kit wells
+                // For default A1, only the kit area is highlighted
+                const isKitWell = isExactMatch || 
+                  (rowIndex < kitRows && colIndex < kitCols);
+                
+                return (
+                  <div
+                    key={wellId}
+                    style={{
+                      width: "25px",
+                      height: "25px",
+                      border: isKitWell ? "2px solid var(--color-primary)" : "1px solid var(--color-border)",
+                      borderRadius: "4px",
+                      backgroundColor: isKitWell ? "var(--color-primary)" : "white",
+                      opacity: isKitWell ? 1 : 0.3,
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: isKitWell ? "pointer" : "default"
+                    }}
+                    onClick={() => isKitWell && handleVisualPositionToggle('A1')}
+                  >
+                    {isKitWell && selectedVisualPositions.includes('A1') && (
+                      <span style={{ color: "white", fontSize: "10px" }}>✓</span>
+                    )}
+                  </div>
+                );
+              })
+            ];
+          }).flat()}
+        </div>
+        
+
+
+      </div>
+    );
+  };
+
+  const renderVisualPlacement = () => {
+    if (!kitSize || !destinationPlateType) return null;
+
+    const { rows: kitRows, columns: kitCols } = kitSize;
+    const plateConfig = getPlateConfig(destinationPlateType);
+    const placementStrategy = getPlacementStrategy(kitRows, kitCols, destinationPlateType);
+
+    return (
+      <div>
+        <h4>Select Position(s) on {plateConfig.name}:</h4>
+        
+        {placementStrategy.strategy === 'exact_match' ? (
+          <div style={{ textAlign: "center" }}>
+            {renderSimplePlateSchematic(true)}
+          </div>
+        ) : placementStrategy.strategy === 'default_a1' ? (
+          <div style={{ textAlign: "center" }}>
+            <p style={{ marginBottom: "15px" }}>Your kit will be placed starting at position A1.</p>
+            {renderSimplePlateSchematic(false)}
+          </div>
+        ) : (
+          <div>
+            <p style={{ marginBottom: "15px" }}>
+              {placementStrategy.strategy === 'block_placement' ? 
+                "Click on the blocks where you want to place your kit:" :
+                placementStrategy.strategy === 'row_blocks' ?
+                "Click on the rows where you want to place your kit:" :
+                "Click on the columns where you want to place your kit:"
+              }
+            </p>
+            {renderSchematicPlate(placementStrategy)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderKitPositionOptions = () => {
+    if (!kitSize) return null;
+
+    return (
+      <div>
+        {renderDestinationPlateSelector()}
+        {renderVisualPlacement()}
+      </div>
+    );
+  };
+
   return (
     <div className="materials-container">
       {/* Top Row: Action Buttons */}
@@ -793,6 +1976,13 @@ const Materials = () => {
             style={{ marginRight: "10px" }}
           >
             Upload Materials
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowKitUploadModal(true)}
+            style={{ marginRight: "10px" }}
+          >
+            Upload Kit
           </button>
         </div>
       </div>
@@ -881,7 +2071,7 @@ const Materials = () => {
                     >
                       Modify
                     </button>
-                    {!personalInventoryStatus[material.name] && material.source !== "inventory" && material.source !== "solvent_database" && material.source !== "excel_upload" && (
+                    {!personalInventoryStatus[material.name] && material.source !== "inventory" && material.source !== "solvent_database" && material.source !== "excel_upload" && material.source !== "kit_upload" && (
                       <button
                         className="btn btn-success"
                         onClick={() => addToPersonalInventory(material)}
@@ -1172,6 +2362,9 @@ const Materials = () => {
                 <li>
                   <strong>Solvent Search:</strong> Use "Add Solvent" to search the solvent database by name, alias, CAS, boiling point, or chemical class.
                 </li>
+                <li>
+                  <strong>Kit Upload:</strong> Upload Excel files containing both materials and design (well positions with amounts) from previous experiments. Kits can be positioned on different plate layouts.
+                </li>
               </ul>
               
               <h4>Search Features:</h4>
@@ -1184,12 +2377,24 @@ const Materials = () => {
                 <li><strong>Solvent Database:</strong> Search by name/alias/CAS, filter by chemical class dropdown, or use boiling point filters (e.g., &quot;&gt;50&quot;, &quot;&lt;100&quot;)</li>
               </ul>
               
+              <h4>Kit Upload Features:</h4>
+              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
+                <li>Upload Excel files with Materials and Design sheets from previous experiments</li>
+                <li>Intelligent kit positioning for 4×6 kits (quadrant distribution on 96-well plates)</li>
+                <li>Full row (1×12) and full column (8×1) kit positioning options</li>
+                <li>Multi-quadrant distribution (place kit in 2 or 4 quadrants simultaneously)</li>
+                <li>Automatic duplicate material detection and merging</li>
+                <li>Kit materials are integrated directly into the procedure/design tab</li>
+                <li>Kit-sourced materials don't show "To personal inventory" button</li>
+              </ul>
+
               <h4>User Experience:</h4>
               <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
                 <li>Toast notifications for all actions</li>
                 <li>Auto-save functionality</li>
                 <li>Modal doesn't close when clicking outside</li>
                 <li>User-friendly success messages using aliases when available</li>
+                <li>Visual kit positioning interface with schematic selection</li>
               </ul>
             </div>
             <div className="modal-footer">
@@ -1860,6 +3065,90 @@ const Materials = () => {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowUploadHelp(false)}>
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kit Upload Modal */}
+      {showKitUploadModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "600px", width: "95%" }}>
+            <div className="modal-header">
+              <h3>Upload Kit</h3>
+              <button className="modal-close" onClick={closeKitUploadModal}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: "20px", color: "var(--color-text-secondary)" }}>
+                Upload an Excel file containing both materials and design (well positions with amounts) for a kit.
+                The kit can be positioned on your current plate layout.
+              </p>
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <input
+                    type="file"
+                    className="form-control"
+                    accept=".xlsx,.xls"
+                    onChange={handleKitFileSelect}
+                    id="kit-upload-input"
+                    style={{ width: "400px" }}
+                  />
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={handleUploadKit}
+                    disabled={!selectedKitFile || uploadingKit}
+                  >
+                    {uploadingKit ? "Analyzing..." : "Upload Kit"}
+                  </button>
+                </div>
+                <p style={{ fontSize: "14px", color: "#666", marginTop: "10px" }}>
+                  Supported formats: Excel files (.xlsx, .xls) with Materials and Design sheets
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeKitUploadModal}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Kit Position Modal */}
+      {showKitPositionModal && kitData && kitSize && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "900px", width: "90%", minHeight: "600px" }}>
+            <div className="modal-header">
+              <h3>Position Kit on Plate</h3>
+              <button className="modal-close" onClick={closeKitPositionModal}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: "20px" }}>
+                <h4>Kit Details:</h4>
+                <p><strong>Kit Size:</strong> {kitSize.rows} rows × {kitSize.columns} columns ({kitSize.total_wells} wells)</p>
+              </div>
+              
+              {/* Kit positioning options based on kit size */}
+              <div style={{ marginBottom: "20px" }}>
+                {renderKitPositionOptions()}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={closeKitPositionModal}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={applyKitToExperiment}
+                disabled={selectedVisualPositions.length === 0}
+              >
+                Apply Kit to Experiment
               </button>
             </div>
           </div>

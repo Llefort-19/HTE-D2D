@@ -1,7 +1,5 @@
 import React, { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
 import { useToast } from "./ToastContext";
-import * as XLSX from 'xlsx';
 import axios from 'axios';
 
 const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
@@ -12,6 +10,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     { id: "context", label: "Experiment Context" },
     { id: "materials", label: "Materials" },
     { id: "procedure", label: "Design" },
+    { id: "procedure-settings", label: "Procedure" },
     { id: "analytical", label: "Analytical Data" },
     { id: "results", label: "Results" },
     { id: "heatmap", label: "Heatmap" },
@@ -35,26 +34,32 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
   const exportToExcel = async () => {
     setIsExporting(true);
     try {
+      // Import XLSX only when needed
+      const XLSX = await import('xlsx');
+      
       // Create a new workbook
       const wb = XLSX.utils.book_new();
 
       // Export Experiment Context
-      await exportExperimentContext(wb);
+      await exportExperimentContext(wb, XLSX);
 
       // Export Materials
-      await exportMaterials(wb);
+      await exportMaterials(wb, XLSX);
 
       // Export Procedure (96-Well Plate)
-      await exportProcedure(wb);
+      await exportProcedure(wb, XLSX);
+
+      // Export Procedure Settings
+      await exportProcedureSettings(wb, XLSX);
 
       // Export Analytical Data
-      await exportAnalyticalData(wb);
+      await exportAnalyticalData(wb, XLSX);
 
       // Export Heatmap Data
-      await exportHeatmapData(wb);
+      await exportHeatmapData(wb, XLSX);
 
       // Add Summary Sheet
-      await exportSummarySheet(wb);
+      await exportSummarySheet(wb, XLSX);
 
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -72,7 +77,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  const exportExperimentContext = async (wb) => {
+  const exportExperimentContext = async (wb, XLSX) => {
     try {
       const response = await axios.get('/api/experiment/context');
       const context = response.data;
@@ -112,7 +117,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  const exportMaterials = async (wb) => {
+  const exportMaterials = async (wb, XLSX) => {
     try {
       const response = await axios.get('/api/experiment/materials');
       const materials = response.data;
@@ -174,7 +179,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  const exportProcedure = async (wb) => {
+  const exportProcedure = async (wb, XLSX) => {
     try {
       const [procedureRes, contextRes] = await Promise.all([
         axios.get('/api/experiment/procedure'),
@@ -184,11 +189,36 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
       const procedure = procedureRes.data;
       const context = contextRes.data;
 
-      // Generate all 96 wells (A1-H12)
-      const wells = [];
-      const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      const columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+      // Determine plate type based on existing wells
+      let plateType = "96"; // default
+      let rows, columns;
       
+      if (procedure && procedure.length > 0) {
+        // Check if we have wells beyond 24-well plate
+        const maxRow = Math.max(...procedure.map(p => p.well.charAt(0).charCodeAt(0)));
+        const maxCol = Math.max(...procedure.map(p => parseInt(p.well.slice(1))));
+        
+        if (maxRow <= 'D'.charCodeAt(0) && maxCol <= 6) {
+          plateType = "24";
+          rows = ['A', 'B', 'C', 'D'];
+          columns = ['1', '2', '3', '4', '5', '6'];
+        } else if (maxRow <= 'F'.charCodeAt(0) && maxCol <= 8) {
+          plateType = "48";
+          rows = ['A', 'B', 'C', 'D', 'E', 'F'];
+          columns = ['1', '2', '3', '4', '5', '6', '7', '8'];
+        } else {
+          plateType = "96";
+          rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+          columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+        }
+      } else {
+        // No procedure data, use 96-well as default
+        rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+      }
+
+      // Generate all wells for the determined plate type
+      const wells = [];
       for (let row of rows) {
         for (let col of columns) {
           wells.push(`${row}${col}`);
@@ -224,7 +254,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
 
       const data = [headers];
 
-      // Process each well in order (A1 to H12)
+      // Process each well in order for the determined plate type
       wells.forEach(wellId => {
         const wellData = procedure.find(p => p.well === wellId);
         const elnNumber = context.eln || '';
@@ -259,7 +289,42 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  const exportAnalyticalData = async (wb) => {
+  const exportProcedureSettings = async (wb, XLSX) => {
+    try {
+      const response = await axios.get('/api/experiment/procedure-settings');
+      const procedureSettings = response.data;
+
+      const data = [
+        ['Procedure Settings'],
+        [''],
+        ['Reaction Conditions'],
+        ['Parameter', 'Value', 'Unit'],
+        ['Temperature', procedureSettings.reactionConditions?.temperature || '', 'degC'],
+        ['Time', procedureSettings.reactionConditions?.time || '', 'h'],
+        ['Pressure', procedureSettings.reactionConditions?.pressure || '', 'bar'],
+        ['Wavelength', procedureSettings.reactionConditions?.wavelength || '', 'nm'],
+        [''],
+        ['Remarks'],
+        [procedureSettings.reactionConditions?.remarks || ''],
+        [''],
+        ['Analytical Details'],
+        ['Parameter', 'Value', 'Unit'],
+        ['UPLC #', procedureSettings.analyticalDetails?.uplcNumber || '', ''],
+        ['Method', procedureSettings.analyticalDetails?.method || '', ''],
+        ['Duration', procedureSettings.analyticalDetails?.duration || '', 'min'],
+        [''],
+        ['Remarks'],
+        [procedureSettings.analyticalDetails?.remarks || '']
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Procedure');
+    } catch (error) {
+      console.error('Error exporting procedure settings:', error);
+    }
+  };
+
+  const exportAnalyticalData = async (wb, XLSX) => {
     try {
       const response = await axios.get('/api/experiment/analytical');
       const analyticalData = response.data;
@@ -342,7 +407,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  const exportHeatmapData = async (wb) => {
+  const exportHeatmapData = async (wb, XLSX) => {
     try {
       const response = await axios.get('/api/experiment/heatmap');
       const heatmapData = response.data;
@@ -401,7 +466,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  const exportSummarySheet = async (wb) => {
+  const exportSummarySheet = async (wb, XLSX) => {
     try {
       // Get all data for summary
       const [contextRes, materialsRes, procedureRes, analyticalRes, heatmapRes] = await Promise.all([
@@ -455,26 +520,75 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
-  return (
-    <header className="top-app-bar">
-      <div className="app-bar-content">
-        <div className="app-bar-left">
-          <span className="text-logo">
-            <span className="logo-text">CPRD HTE App</span>
-          </span>
-        </div>
-        <nav className="app-bar-nav">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`nav-link ${activeTab === tab.id ? "active" : ""}`}
-              onClick={() => onTabChange(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-        <div className="app-bar-right">
+      return (
+      <header className="top-app-bar" style={{ 
+        height: "80px", 
+        minHeight: "80px",
+        padding: "0",
+        display: "flex",
+        alignItems: "center"
+      }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          height: "100%",
+          padding: "0 60px",
+          width: "100%",
+          maxWidth: "100%"
+        }}>
+          {/* Logo Section - Left */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+            minWidth: "200px"
+          }}>
+            <div className="logo-container">
+              <img 
+                src="/logo-hte-d2d.png" 
+                alt="HTE D2D - Design to Data" 
+                className="app-logo"
+                style={{
+                  height: "60px",
+                  width: "auto",
+                  objectFit: "contain"
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Navigation Section - Center */}
+          <nav style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "1rem",
+            flex: "1",
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)"
+          }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                className={`nav-link ${activeTab === tab.id ? "active" : ""}`}
+                onClick={() => onTabChange(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Buttons Section - Right */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flexShrink: 0,
+            minWidth: "200px",
+            justifyContent: "flex-end"
+          }}>
           <button 
             className="btn btn-success export-btn"
             onClick={exportToExcel}

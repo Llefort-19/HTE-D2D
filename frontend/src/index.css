@@ -25,32 +25,11 @@ code {
   padding: 20px;
 }
 
-.card {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: 20px;
-  margin-bottom: 20px;
-  border: 1px solid var(--color-border);
-}
+/* Card styles moved to theme.css to avoid duplication */
 
-.btn {
-  background: var(--color-primary);
-  color: var(--color-surface);
-  border: none;
-  padding: 10px 20px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 14px;
-  margin: 5px;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
-}
+/* Button styles moved to theme.css to avoid duplication */
 
-.btn:hover {
-  background: color-mix(in srgb, var(--color-primary) 85%, #000 15%);
-}
+/* Button hover styles are already defined in theme.css */
 
 .btn-secondary {
   background: var(--color-secondary);
@@ -226,6 +205,16 @@ code {
   z-index: 1;
 }
 
+.column-headers.plate-48 {
+  grid-template-columns: 35px repeat(8, 35px);
+  width: 315px; /* 35px + (8 * 35px) */
+  position: absolute;
+  top: 50px; /* Account for plate header */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Center the element */
+  z-index: 1;
+}
+
 .corner-cell {
   width: 35px;
   height: 30px;
@@ -294,6 +283,20 @@ code {
 .plate-grid.plate-24 .plate-row {
   display: grid;
   grid-template-columns: 35px repeat(6, 35px) !important;
+  gap: 2px;
+}
+
+.plate-grid.plate-48 {
+  width: 315px; /* 35px + (8 * 35px) */
+  position: absolute;
+  top: 80px; /* Account for plate header + column headers */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Center the element */
+}
+
+.plate-grid.plate-48 .plate-row {
+  display: grid;
+  grid-template-columns: 35px repeat(8, 35px) !important;
   gap: 2px;
 }
 

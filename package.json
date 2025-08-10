@@ -17,10 +17,6 @@
     "postinstall": "cd frontend && npm install --legacy-peer-deps"
   },
   "dependencies": {
-    "smiles-drawer": "^2.1.7",
-    "concurrently": "^8.2.2"
-  },
-  "devDependencies": {
     "concurrently": "^8.2.2"
   },
   "keywords": [

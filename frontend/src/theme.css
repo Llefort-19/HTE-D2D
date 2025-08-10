@@ -72,6 +72,12 @@
   --color-well-very-high: #9C27B0; /* Purple - very high amounts */
   --color-well-default: #2196F3; /* Blue - default */
 
+  /* Kit quadrant colors - cyan and green tones for 96-well plate placement */
+  --color-quadrant-1: #d1ecf1; /* Light cyan (info-light) */
+  --color-quadrant-2: #d4edda; /* Light green (success-light) */
+  --color-quadrant-3: #c7e9b4; /* Light mint green (heatmap-green-2) */
+  --color-quadrant-4: #abd9e9; /* Light teal cyan (heatmap-cyan) */
+
   /* Sizing & radius */
   --radius-xs: 0.125rem;
   --radius-sm: 0.25rem;
@@ -806,7 +812,9 @@ a:hover {
   }
   
   .plate-grid.plate-24,
-  .column-headers.plate-24 {
+  .column-headers.plate-24,
+  .plate-grid.plate-48,
+  .column-headers.plate-48 {
     position: relative;
     top: auto;
     left: auto;

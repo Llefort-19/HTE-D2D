@@ -12,7 +12,8 @@ const ExperimentContext = () => {
   });
   const [sdfData, setSdfData] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [addedMaterials, setAddedMaterials] = useState(new Set());
+
 
   const { showSuccess, showError } = useToast();
 
@@ -44,20 +45,27 @@ const ExperimentContext = () => {
   useEffect(() => {
     loadContext();
     loadSdfData();
-    
-    // Listen for help events from header
-    const handleHelpEvent = (event) => {
-      if (event.detail.tabId === 'context') {
-        setShowHelpModal(true);
-      }
-    };
-    
-    window.addEventListener('showHelp', handleHelpEvent);
-    
-    return () => {
-      window.removeEventListener('showHelp', handleHelpEvent);
-    };
+    loadCurrentMaterials();
   }, []);
+
+  const loadCurrentMaterials = async () => {
+    try {
+      const response = await axios.get('/api/experiment/materials');
+      const currentMaterials = response.data || [];
+      
+      // Create a set of identifiers for materials already in the list
+      const addedSet = new Set();
+      currentMaterials.forEach(material => {
+        if (material.name) addedSet.add(material.name);
+        if (material.smiles) addedSet.add(material.smiles);
+        if (material.cas) addedSet.add(material.cas);
+      });
+      
+      setAddedMaterials(addedSet);
+    } catch (error) {
+      console.error("Error loading current materials:", error);
+    }
+  };
 
   const loadSdfData = () => {
     try {
@@ -120,6 +128,13 @@ const ExperimentContext = () => {
     } catch (error) {
       console.error('Upload error:', error);
       console.error('Error response:', error.response);
+      
+      // Show specific error message to user
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Failed to upload SDF file';
+      showError(`SDF Upload Error: ${errorMessage}`);
     } finally {
       setUploading(false);
       // Clear the file input for next use
@@ -168,6 +183,12 @@ const ExperimentContext = () => {
     }
   };
 
+  const isMaterialAdded = (chemical) => {
+    return addedMaterials.has(chemical.name) || 
+           addedMaterials.has(chemical.smiles) ||
+           (chemical.cas && addedMaterials.has(chemical.cas));
+  };
+
   const addChemicalToMaterials = async (chemical) => {
     try {
       // Get current materials to check for duplicates
@@ -203,6 +224,9 @@ const ExperimentContext = () => {
 
       const updatedMaterials = [...currentMaterials, newMaterial];
       await axios.post('/api/experiment/materials', updatedMaterials);
+      
+      // Add to the set of added materials
+      setAddedMaterials(prev => new Set([...prev, chemical.name, chemical.smiles]));
       
       showSuccess(`${chemical.name} added to materials list`);
     } catch (error) {
@@ -380,9 +404,14 @@ const ExperimentContext = () => {
                             type="button"
                             className="btn btn-success"
                             onClick={() => addChemicalToMaterials(mol)}
-                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                            disabled={isMaterialAdded(mol)}
+                            style={{ 
+                              padding: '4px 8px', 
+                              fontSize: '12px',
+                              opacity: isMaterialAdded(mol) ? 0.5 : 1
+                            }}
                           >
-                            Add to Materials
+                            {isMaterialAdded(mol) ? 'Added' : 'Add to Materials'}
                           </button>
                         </td>
                       </tr>
@@ -395,67 +424,7 @@ const ExperimentContext = () => {
         </form>
       </div>
 
-      {/* Help Modal */}
-      {showHelpModal && (
-        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "1000px", width: "95%" }}>
-            <div className="modal-header">
-              <h3>Experiment Context Help</h3>
-              <button
-                className="modal-close"
-                onClick={() => setShowHelpModal(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body" style={{ textAlign: "left" }}>
-              <h4>Experiment Context Features:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6" }}>
-                <li>
-                  <strong>Basic Information:</strong> Enter author, date, project, ELN reference, and objective for your experiment.
-                </li>
-                <li>
-                  <strong>Reaction Upload:</strong> Upload SDF files containing reaction structures. Click "Select File" to choose your SDF file.
-                </li>
-                <li>
-                  <strong>Reaction Analysis:</strong> View parsed molecules with ID-based names (ID-01, ID-02, etc.), SMILES, and 2D structures.
-                </li>
-                <li>
-                  <strong>Role Assignment:</strong> Use the dropdown menu to assign roles to each chemical (Reactant, Target product, Product, Solvent, Reagent, Internal standard).
-                </li>
-                <li>
-                  <strong>Add to Materials:</strong> Click "Add to Materials" to add chemicals from the reaction to your materials list with their assigned roles.
-                </li>
-                <li>
-                  <strong>Clear Reaction:</strong> Use "Clear Reaction" to remove uploaded reaction data and start over.
-                </li>
-                <li>
-                  <strong>Data Persistence:</strong> Reaction data and role assignments persist when switching tabs until manually cleared.
-                </li>
-              </ul>
-              
-              <h4>File Requirements:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>Only SDF format files are accepted</li>
-                <li>Molecules are automatically assigned ID-based names (ID-01, ID-02, etc.)</li>
-                <li>Users manually assign roles to each chemical using dropdown menus</li>
-                <li>Available roles: Reactant, Target product, Product, Solvent, Reagent, Internal standard</li>
-                <li>Role assignments are saved and persist across tab switches</li>
-              </ul>
-              
-              <h4>User Experience:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>Automatic duplicate checking when adding to materials</li>
-                <li>Toast notifications for all actions</li>
-                <li>Consistent molecular structure rendering</li>
-                <li>Streamlined file upload process</li>
-              </ul>
-            </div>
-            <div className="modal-footer">
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

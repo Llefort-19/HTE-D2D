@@ -4,25 +4,14 @@ import { useToast } from "./ToastContext";
 
 const Results = () => {
   const [analyticalData, setAnalyticalData] = useState(null);
-  const [showHelpModal, setShowHelpModal] = useState(false);
+
 
   const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     loadAnalyticalData();
     
-    // Listen for help events from header
-    const handleHelpEvent = (event) => {
-      if (event.detail.tabId === 'results') {
-        setShowHelpModal(true);
-      }
-    };
-    
-    window.addEventListener('showHelp', handleHelpEvent);
-    
-    return () => {
-      window.removeEventListener('showHelp', handleHelpEvent);
-    };
+
   }, []);
 
   const loadAnalyticalData = async () => {
@@ -146,84 +135,7 @@ const Results = () => {
         )}
       </div>
 
-      {/* Help Modal */}
-      {showHelpModal && (
-        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "800px", width: "95%" }}>
-            <div className="modal-header">
-              <h3>Results Help</h3>
-              <button
-                className="modal-close"
-                onClick={() => setShowHelpModal(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body" style={{ textAlign: "left" }}>
-              <h4>Results Overview:</h4>
-              <p>View analytical results from uploaded UPLC data and export the complete experiment.</p>
-              
-              <h4>Results Features:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>
-                  <strong>Analytical Data Display:</strong> View uploaded UPLC results in a table format.
-                </li>
-                <li>
-                  <strong>File Information:</strong> See filename, upload date, and data dimensions.
-                </li>
-                <li>
-                  <strong>Data Table:</strong> Browse through all uploaded analytical data.
-                </li>
-                <li>
-                  <strong>Export Functionality:</strong> Generate comprehensive Excel reports.
-                </li>
-              </ul>
-              
-              <h4>Data Structure:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>Well: Well plate position (A1-H12 for 96-well, A1-D6 for 24-well)</li>
-                <li>Sample ID: Unique identifier for each sample</li>
-                <li>Compound Areas: Chromatogram peak areas for each compound</li>
-                <li>Data is organized according to the analytical template format</li>
-              </ul>
-              
-              <h4>Export Information:</h4>
-              <p>The exported Excel file will contain the following sheets:</p>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>
-                  <strong>Context:</strong> Experiment metadata (author, date, project, etc.)
-                </li>
-                <li>
-                  <strong>Materials:</strong> All chemicals used with their properties
-                </li>
-                <li>
-                  <strong>Procedure:</strong> Well plate layout with compound quantities
-                </li>
-                <li>
-                  <strong>Analytical Data:</strong> UPLC results from uploaded file
-                </li>
-                <li>
-                  <strong>Results:</strong> Calculated conversion, yield, and selectivity
-                </li>
-              </ul>
 
-              <p>
-                <strong>Note:</strong> This data format is compatible with the provided template and suitable for ML model training.
-              </p>
-              
-              <h4>Workflow:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>1. Upload analytical data in the Analytical Data tab</li>
-                <li>2. View results in this tab</li>
-                <li>3. Export complete experiment to Excel</li>
-                <li>4. Use exported data for analysis and ML training</li>
-              </ul>
-            </div>
-            <div className="modal-footer">
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,0 +1,16 @@
+warning: in the working copy of 'backend/app.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/App.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/Header.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/Materials.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/components/Procedure.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/index.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/src/theme.css', LF will be replaced by CRLF the next time Git touches it
+backend/app.py
+frontend/src/App.css
+frontend/src/App.js
+frontend/src/components/Header.jsx
+frontend/src/components/Materials.js
+frontend/src/components/Procedure.js
+frontend/src/index.css
+frontend/src/theme.css

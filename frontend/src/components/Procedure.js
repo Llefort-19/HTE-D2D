@@ -13,9 +13,11 @@ const Procedure = () => {
   const [clickedWell, setClickedWell] = useState(null);
   const [showWellModal, setShowWellModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [plateType, setPlateType] = useState("96"); // "96" or "24"
+  const [plateType, setPlateType] = useState("96"); // "96", "48", or "24"
   const [showPlateSwitchWarning, setShowPlateSwitchWarning] = useState(false);
   const [pendingPlateType, setPendingPlateType] = useState(null);
+
+
 
   const { showError } = useToast();
 
@@ -25,6 +27,12 @@ const Procedure = () => {
       return {
         rows: ["A", "B", "C", "D"],
         columns: ["1", "2", "3", "4", "5", "6"],
+        wells: []
+      };
+    } else if (type === "48") {
+      return {
+        rows: ["A", "B", "C", "D", "E", "F"],
+        columns: ["1", "2", "3", "4", "5", "6", "7", "8"],
         wells: []
       };
     } else {
@@ -139,12 +147,25 @@ const Procedure = () => {
 
   const loadProcedure = async () => {
     try {
-      const response = await axios.get("/api/experiment/procedure");
-      setProcedure(response.data || []);
+      const [procedureResponse, contextResponse] = await Promise.all([
+        axios.get("/api/experiment/procedure"),
+        axios.get("/api/experiment/context")
+      ]);
+      
+      setProcedure(procedureResponse.data || []);
+      
+      // Check if there's a plate type set in the context from kit upload
+      const context = contextResponse.data || {};
+      if (context.plate_type && context.plate_type !== plateType) {
+        console.log(`Setting plate type from context: ${context.plate_type}`);
+        setPlateType(context.plate_type);
+      }
     } catch (error) {
       console.error("Error loading procedure:", error);
     }
   };
+
+
 
   const loadMaterials = async () => {
     try {
@@ -687,6 +708,13 @@ const Procedure = () => {
                   <span className="plate-label">96-Well</span>
                 </button>
                 <button
+                  className={`plate-type-btn ${plateType === "48" ? "active" : ""}`}
+                  onClick={() => handlePlateTypeSwitch("48")}
+                  title="48-Well Plate (6×8)"
+                >
+                  <span className="plate-label">48-Well</span>
+                </button>
+                <button
                   className={`plate-type-btn ${plateType === "24" ? "active" : ""}`}
                   onClick={() => handlePlateTypeSwitch("24")}
                   title="24-Well Plate (4×6)"
@@ -788,9 +816,9 @@ const Procedure = () => {
                   select them, or use the following methods:
                 </li>
                 <ul style={{ paddingLeft: "20px", marginTop: "5px" }}>
-                  <li>Click on row letters ({plateType === "96" ? "A-H" : "A-D"}) to select entire rows</li>
+                  <li>Click on row letters ({plateType === "96" ? "A-H" : plateType === "48" ? "A-F" : "A-D"}) to select entire rows</li>
                   <li>
-                    Click on column numbers ({plateType === "96" ? "1-12" : "1-6"}) to select entire columns
+                    Click on column numbers ({plateType === "96" ? "1-12" : plateType === "48" ? "1-8" : "1-6"}) to select entire columns
                   </li>
                   <li>
                     Hold Ctrl/Cmd and click to select multiple rows/columns

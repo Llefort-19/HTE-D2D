@@ -1,20 +1,27 @@
-from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
-import pandas as pd
+# Standard library imports
 import os
-import json
-from datetime import datetime
-import tempfile
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
-from openpyxl.utils.dataframe import dataframe_to_rows
-from rdkit import Chem
-from rdkit.Chem import Draw
-from rdkit.Chem import AllChem
-from PIL import Image
 import io
 import base64
+import tempfile
+from datetime import datetime
 import re
+
+# Third-party imports
+import pandas as pd
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+from PIL import Image
+
+# Chemical informatics imports
+try:
+    from rdkit import Chem
+    from rdkit.Chem import Draw, AllChem
+    RDKIT_AVAILABLE = True
+except ImportError:
+    print("Warning: RDKit not available. Molecule rendering will be disabled.")
+    RDKIT_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app)
@@ -25,137 +32,27 @@ current_experiment = {
     'context': {},
     'materials': [],
     'procedure': [],
+    'procedure_settings': {
+        'reactionConditions': {
+            'temperature': '',
+            'time': '',
+            'pressure': '',
+            'wavelength': '',
+            'remarks': ''
+        },
+        'analyticalDetails': {
+            'uplcNumber': '',
+            'method': '',
+            'duration': '',
+            'remarks': ''
+        }
+    },
     'analytical_data': [],
     'results': []
 }
 
-def normalize_2d_coordinates(mol, target_bond_length=1.5):
-    """
-    Normalize 2D coordinates of an RDKit molecule to ensure consistent bond lengths.
-    
-    Args:
-        mol: RDKit Mol object
-        target_bond_length (float): Target bond length in Angstroms (default: 1.5)
-    
-    Returns:
-        RDKit Mol object with normalized coordinates
-    """
-    try:
-        if mol is None or mol.GetNumConformers() == 0:
-            return mol
-        
-        # Get the 2D conformer
-        conf = mol.GetConformer()
-        
-        # Calculate current average bond length
-        total_bond_length = 0.0
-        num_bonds = 0
-        
-        for bond in mol.GetBonds():
-            begin_idx = bond.GetBeginAtomIdx()
-            end_idx = bond.GetEndAtomIdx()
-            
-            begin_pos = conf.GetAtomPosition(begin_idx)
-            end_pos = conf.GetAtomPosition(end_idx)
-            
-            # Calculate Euclidean distance
-            bond_length = ((begin_pos.x - end_pos.x) ** 2 + 
-                          (begin_pos.y - end_pos.y) ** 2) ** 0.5
-            total_bond_length += bond_length
-            num_bonds += 1
-        
-        if num_bonds == 0:
-            return mol
-        
-        # Calculate current average bond length
-        current_avg_bond_length = total_bond_length / num_bonds
-        
-        # Calculate scaling factor
-        if current_avg_bond_length > 0:
-            scale_factor = target_bond_length / current_avg_bond_length
-        else:
-            scale_factor = 1.0
-        
-        # Apply scaling to all atom positions
-        for atom_idx in range(mol.GetNumAtoms()):
-            pos = conf.GetAtomPosition(atom_idx)
-            new_pos = Chem.rdGeometry.Point3D(
-                pos.x * scale_factor,
-                pos.y * scale_factor,
-                pos.z
-            )
-            conf.SetAtomPosition(atom_idx, new_pos)
-        
-        return mol
-    except Exception as e:
-        # Return original molecule if normalization fails
-        return mol
-
-def prepare_molecule(smiles, target_bond_length=1.5):
-    """Parse SMILES, generate 2D coords, normalize bond lengths."""
-    try:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            return None
-        try:
-            AllChem.Compute2DCoords(mol, canonOrient=True)
-        except Exception:
-            AllChem.Compute2DCoords(mol)
-        mol = normalize_2d_coordinates(mol, target_bond_length)
-        return mol
-    except Exception as e:
-        print(f"[prepare_molecule] Error: {e}")
-        return None
-
-def render_molecule_svg(mol, image_size):
-    """Render molecule to SVG using RDKit MolDraw2DSVG."""
-    try:
-        drawer = Draw.MolDraw2DSVG(image_size[0], image_size[1])
-        drawer.DrawMolecule(mol)
-        drawer.FinishDrawing()
-        return drawer.GetDrawingText()
-    except Exception as e:
-        print(f"[render_molecule_svg] Error: {e}")
-        return None
-
-def svg_to_png(svg_data):
-    """Convert SVG data to PNG bytes using cairosvg."""
-    try:
-        import cairosvg
-        return cairosvg.svg2png(bytestring=svg_data.encode('utf-8'))
-    except Exception as e:
-        print(f"[svg_to_png] Error: {e}")
-        return None
-
-def render_molecule_png(mol, image_size):
-    """Render molecule to PNG using RDKit's MolToImage."""
-    try:
-        return Draw.MolToImage(
-            mol,
-            size=image_size,
-            kekulize=True,
-            wedgeBonds=True,
-            fitImage=True,
-            useCoords=True
-        )
-    except Exception as e:
-        print(f"[render_molecule_png] Error: {e}")
-        try:
-            return Draw.MolToImage(
-                mol,
-                size=image_size,
-                kekulize=True,
-                wedgeBonds=True,
-                fitImage=True
-            )
-        except Exception as e2:
-            print(f"[render_molecule_png fallback] Error: {e2}")
-            return None
-
 def image_to_base64(img_or_bytes):
     """Convert PIL.Image or PNG bytes to base64 string."""
-    import base64
-    import io
     try:
         if hasattr(img_or_bytes, 'save'):
             buffer = io.BytesIO()
@@ -169,93 +66,147 @@ def image_to_base64(img_or_bytes):
         return None
 
 def blank_png_base64(size=(300, 300)):
-    from PIL import Image
+    """Generate a blank PNG image as base64 string."""
     img = Image.new("RGBA", size, (255, 255, 255, 0))
     return image_to_base64(img)
 
+def normalize_2d_coordinates(mol):
+    """Normalize 2D coordinates for consistent rendering."""
+    if not RDKIT_AVAILABLE:
+        return mol
+    
+    try:
+        AllChem.Compute2DCoords(mol)
+        return mol
+    except Exception as e:
+        print(f"[normalize_2d_coordinates] Error: {e}")
+        return mol
+
+def prepare_molecule(smiles_string):
+    """Prepare molecule from SMILES string."""
+    if not RDKIT_AVAILABLE:
+        return None
+    
+    try:
+        mol = Chem.MolFromSmiles(smiles_string.strip())
+        if mol is None:
+            print(f"[prepare_molecule] Invalid SMILES: {smiles_string}")
+            return None
+        
+        mol = normalize_2d_coordinates(mol)
+        return mol
+    except Exception as e:
+        print(f"[prepare_molecule] Error: {e}")
+        return None
+
+def render_molecule_png(mol, image_size=(300, 300)):
+    """Render molecule as PNG bytes using RDKit's built-in PIL renderer."""
+    if not RDKIT_AVAILABLE or mol is None:
+        return None
+    
+    try:
+        # Use RDKit's PIL-based PNG drawer (no cairosvg needed)
+        img = Draw.MolToImage(mol, size=image_size)
+        
+        # Convert PIL image to PNG bytes
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format='PNG')
+        png_bytes = img_buffer.getvalue()
+        
+        return png_bytes
+    except Exception as e:
+        print(f"[render_molecule_png] Error: {e}")
+        return None
+
 def generate_molecule_image(smiles_string, image_size=(300, 300)):
     """
-    Generate a 2D molecule image from a SMILES string with consistent rendering.
-    Returns: base64 encoded PNG or a blank PNG if all rendering fails.
+    Generate a 2D molecule image from a SMILES string.
+    Returns: base64 encoded PNG image or None if error.
     """
+    if not RDKIT_AVAILABLE:
+        print("[generate_molecule_image] RDKit not available")
+        return blank_png_base64(image_size)
+    
     try:
         mol = prepare_molecule(smiles_string)
         if mol is None:
+            print(f"[generate_molecule_image] Could not prepare molecule from: {smiles_string}")
             return blank_png_base64(image_size)
-        # Try SVG rendering first
-        svg_data = render_molecule_svg(mol, image_size)
-        if svg_data:
-            png_bytes = svg_to_png(svg_data)
-            if png_bytes:
-                b64 = image_to_base64(png_bytes)
-                if b64:
-                    return b64
-        # Fallback to PNG rendering
-        img = render_molecule_png(mol, image_size)
-        if img:
-            b64 = image_to_base64(img)
-            if b64:
-                return b64
-        # Final fallback: blank image
-        return blank_png_base64(image_size)
+        
+        png_bytes = render_molecule_png(mol, image_size)
+        if png_bytes:
+            return image_to_base64(png_bytes)
+        else:
+            print(f"[generate_molecule_image] Could not render PNG for: {smiles_string}")
+            return blank_png_base64(image_size)
     except Exception as e:
-        print(f"[generate_molecule_image] Error: {e}")
+        print(f"[generate_molecule_image] Error with {smiles_string}: {e}")
         return blank_png_base64(image_size)
 
 def parse_sdf_file(sdf_content):
     """
-    Parse SDF file content and extract molecules using RDKit's SDF reader.
+    Parse SDF file content and extract molecules with images.
     
     Args:
         sdf_content (str): The content of the SDF file
     
     Returns:
-        list: List of molecules with their SMILES and images
+        list: List of molecule dictionaries with name, smiles, and image
     """
+    if not RDKIT_AVAILABLE:
+        print("[parse_sdf_file] RDKit not available")
+        return []
+    
     molecules = []
     
     try:
-        # Create a temporary file to use with SDMolSupplier
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.sdf', delete=False) as tmp_file:
-            tmp_file.write(sdf_content)
-            tmp_file_path = tmp_file.name
+        print(f"[parse_sdf_file] Processing SDF content, length: {len(sdf_content)}")
         
-        # Read molecules from the temporary file
-        suppl = Chem.SDMolSupplier(tmp_file_path)
+        # Use RDKit to parse SDF
+        mol_supplier = Chem.SDMolSupplier()
+        mol_supplier.SetData(sdf_content)
         
-        for i, mol in enumerate(suppl):
-            if mol is not None:
-                try:
-                    # Get molecule name
-                    mol_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"Molecule_{i+1}"
-                    
-                    # Convert to SMILES
-                    smiles = Chem.MolToSmiles(mol)
-                    
-                    # Generate image
-                    image_data = generate_molecule_image(smiles, (200, 200))
-                    
-                    molecules.append({
-                        'name': mol_name,
-                        'smiles': smiles,
-                        'image': image_data
-                    })
-                    
-                except Exception as e:
-                    continue
-            else:
+        for i, mol in enumerate(mol_supplier):
+            if mol is None:
+                print(f"[parse_sdf_file] Skipping invalid molecule at index {i}")
+                continue
+            
+            try:
+                # Get molecule name from SDF properties or generate one
+                mol_name = mol.GetProp('_Name') if mol.HasProp('_Name') else f"Molecule_{i+1}"
+                
+                # Generate SMILES
+                smiles = Chem.MolToSmiles(mol)
+                
+                # Generate molecule image
+                image_size = (200, 200)  # Smaller size for table display
+                mol_2d = normalize_2d_coordinates(mol)
+                png_bytes = render_molecule_png(mol_2d, image_size)
+                
+                image_base64 = None
+                if png_bytes:
+                    image_base64 = image_to_base64(png_bytes)
+                
+                molecule_data = {
+                    'name': mol_name,
+                    'smiles': smiles,
+                    'image': image_base64,
+                    'role': ''  # Will be set by user
+                }
+                
+                molecules.append(molecule_data)
+                print(f"[parse_sdf_file] Processed molecule {i+1}: {mol_name}")
+                
+            except Exception as e:
+                print(f"[parse_sdf_file] Error processing molecule {i+1}: {e}")
                 continue
         
-        # Clean up temporary file
-        try:
-            os.unlink(tmp_file_path)
-        except Exception:
-            pass
+        print(f"[parse_sdf_file] Successfully processed {len(molecules)} molecules")
+        return molecules
         
     except Exception as e:
-        pass
-    
-    return molecules
+        print(f"[parse_sdf_file] Error parsing SDF: {e}")
+        return []
 
 def load_inventory():
     """Load inventory from Excel file"""
@@ -341,6 +292,7 @@ def search_solvents():
     search_type = request.args.get('type', 'all')  # all, name, alias, cas, boiling_point, class
     class_filter = request.args.get('class_filter', '').lower()
     bp_filter = request.args.get('bp_filter', '')
+    tier_filter = request.args.get('tier_filter', '')
     
     solvent_path = os.path.join(os.path.dirname(__file__), '..', 'Solvent.xlsx')
     
@@ -357,17 +309,30 @@ def search_solvents():
         results = df.copy()
         
         # Apply text search if query provided
-        if query and search_type == 'all':
+        if query:
             text_filter = (
                 df['Name'].astype(str).str.lower().str.contains(query, na=False) |
                 df['Alias'].astype(str).str.lower().str.contains(query, na=False) |
                 df['CAS Number'].astype(str).str.lower().str.contains(query, na=False)
             )
             results = results[text_filter]
+            print(f"Text filter results: {len(results)} matches found")
         
         # Apply class filter if provided
         if class_filter:
-            class_mask = df['Chemical Class'].astype(str).str.lower().str.contains(class_filter, na=False)
+            print(f"Applying class filter: '{class_filter}'")
+            # More flexible class matching - check if the class filter is contained in the chemical class
+            # Also handle common variations and plural forms
+            class_variations = [class_filter]
+            if class_filter.endswith('s'):
+                class_variations.append(class_filter[:-1])  # Remove 's' for singular
+            else:
+                class_variations.append(class_filter + 's')  # Add 's' for plural
+            
+            # Create a more flexible filter
+            class_mask = results['Chemical Class'].astype(str).str.lower().str.contains('|'.join(class_variations), na=False)
+            print(f"Class filter results: {class_mask.sum()} matches found")
+            print(f"Available classes in filtered data: {results['Chemical Class'].astype(str).unique()}")
             results = results[class_mask]
         
         # Apply boiling point filter if provided
@@ -375,19 +340,33 @@ def search_solvents():
             try:
                 if bp_filter.startswith('>'):
                     bp_value = float(bp_filter[1:].strip())
-                    bp_mask = df['Boiling point'] > bp_value
+                    bp_mask = results['Boiling point'] > bp_value
                 elif bp_filter.startswith('<'):
                     bp_value = float(bp_filter[1:].strip())
-                    bp_mask = df['Boiling point'] < bp_value
+                    bp_mask = results['Boiling point'] < bp_value
                 else:
                     # Try to parse as exact value
                     bp_value = float(bp_filter)
                     tolerance = 5  # ±5°C tolerance
-                    bp_mask = (df['Boiling point'] >= bp_value - tolerance) & (df['Boiling point'] <= bp_value + tolerance)
+                    bp_mask = (results['Boiling point'] >= bp_value - tolerance) & (results['Boiling point'] <= bp_value + tolerance)
                 
+                print(f"Boiling point filter results: {bp_mask.sum()} matches found")
                 results = results[bp_mask]
             except ValueError:
                 # If boiling point filter is invalid, return empty results
+                print("Invalid boiling point filter value")
+                results = pd.DataFrame()
+        
+        # Apply tier filter if provided
+        if tier_filter:
+            try:
+                max_tier = int(tier_filter)
+                # Extract numeric part from "Tier X" format
+                tier_numeric = results['Tier'].astype(str).str.extract(r'Tier\s*(\d+)')[0].astype(float)
+                tier_mask = tier_numeric <= max_tier
+                results = results[tier_mask]
+            except ValueError:
+                # If tier filter is invalid, return empty results
                 results = pd.DataFrame()
         
         # Convert to list of dictionaries with consistent field names
@@ -410,6 +389,66 @@ def search_solvents():
         
     except Exception as e:
         return jsonify({'error': f'Error searching solvents: {str(e)}'}), 500
+
+@app.route('/api/solvent/tiers', methods=['GET'])
+def get_solvent_tiers():
+    """Get all available solvent tiers from the database"""
+    solvent_path = os.path.join(os.path.dirname(__file__), '..', 'Solvent.xlsx')
+    
+    if not os.path.exists(solvent_path):
+        return jsonify({'error': 'Solvent database not found'}), 404
+    
+    try:
+        df = pd.read_excel(solvent_path)
+        df = df.fillna('')
+        
+        # Get unique tiers
+        tiers = df['Tier'].astype(str).unique()
+        tiers = [tier.strip() for tier in tiers if tier.strip() and tier.strip().lower() != 'nan']
+        
+        # Extract numeric part from "Tier X" format and convert to integers
+        tier_numbers = []
+        for tier in tiers:
+            try:
+                # Extract number from "Tier X" format
+                match = re.search(r'Tier\s*(\d+)', tier, re.IGNORECASE)
+                if match:
+                    tier_numbers.append(int(match.group(1)))
+            except (ValueError, AttributeError):
+                continue
+        
+        # Sort and convert back to strings
+        tier_numbers.sort()
+        tiers = [str(tier) for tier in tier_numbers]
+        
+        return jsonify(tiers)
+        
+    except Exception as e:
+        return jsonify({'error': f'Error getting solvent tiers: {str(e)}'}), 500
+
+@app.route('/api/solvent/classes', methods=['GET'])
+def get_solvent_classes():
+    """Get all available solvent classes from the database"""
+    solvent_path = os.path.join(os.path.dirname(__file__), '..', 'Solvent.xlsx')
+    
+    if not os.path.exists(solvent_path):
+        return jsonify({'error': 'Solvent database not found'}), 404
+    
+    try:
+        df = pd.read_excel(solvent_path)
+        df = df.fillna('')
+        
+        # Get unique chemical classes
+        classes = df['Chemical Class'].astype(str).unique()
+        classes = [cls.strip() for cls in classes if cls.strip() and cls.strip().lower() != 'nan']
+        
+        # Sort classes alphabetically
+        classes.sort()
+        
+        return jsonify(classes)
+        
+    except Exception as e:
+        return jsonify({'error': f'Error getting solvent classes: {str(e)}'}), 500
 
 @app.route('/api/inventory/private/add', methods=['POST'])
 def add_to_private_inventory():
@@ -504,6 +543,31 @@ def experiment_procedure():
         return jsonify({'message': 'Procedure updated'})
     
     return jsonify(current_experiment['procedure'])
+
+@app.route('/api/experiment/procedure-settings', methods=['GET', 'POST'])
+def experiment_procedure_settings():
+    """Get or update experiment procedure settings (reaction conditions and analytical details)"""
+    global current_experiment
+    
+    if request.method == 'POST':
+        current_experiment['procedure_settings'] = request.json
+        return jsonify({'message': 'Procedure settings updated'})
+    
+    return jsonify(current_experiment.get('procedure_settings', {
+        'reactionConditions': {
+            'temperature': '',
+            'time': '',
+            'pressure': '',
+            'wavelength': '',
+            'remarks': ''
+        },
+        'analyticalDetails': {
+            'uplcNumber': '',
+            'method': '',
+            'duration': '',
+            'remarks': ''
+        }
+    }))
 
 @app.route('/api/experiment/analytical', methods=['GET', 'POST'])
 def experiment_analytical():
@@ -844,6 +908,807 @@ def upload_materials_from_excel():
         traceback.print_exc()
         return jsonify({'error': f'Materials upload failed: {str(e)}'}), 500
 
+@app.route('/api/experiment/kit/analyze', methods=['POST'])
+def analyze_kit():
+    """Analyze kit Excel file and return materials and design data"""
+    try:
+        print("Kit analyze endpoint called")
+        
+        if 'file' not in request.files:
+            print("No file in request.files")
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        print(f"File received: {file.filename}")
+        
+        if file.filename == '':
+            print("Empty filename")
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Check file extension
+        allowed_extensions = {'.xlsx', '.xls'}
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        print(f"File extension: {file_ext}")
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+        
+        # Read the Excel file
+        try:
+            print("Attempting to read Excel file")
+            excel_file = pd.ExcelFile(file)
+            print(f"Excel sheets: {excel_file.sheet_names}")
+        except Exception as e:
+            print(f"Error reading Excel file: {str(e)}")
+            return jsonify({'error': f'Error reading Excel file: {str(e)}'}), 400
+        
+        # Look for Materials sheet
+        if 'Materials' not in excel_file.sheet_names:
+            return jsonify({'error': 'No "Materials" sheet found in the Excel file'}), 400
+        
+        # Look for Design sheet
+        if 'Design' not in excel_file.sheet_names:
+            return jsonify({'error': 'No "Design" sheet found in the Excel file'}), 400
+        
+        # Read the Materials sheet
+        try:
+            materials_df = pd.read_excel(file, sheet_name='Materials')
+            print(f"Materials sheet read successfully. Shape: {materials_df.shape}")
+        except Exception as e:
+            print(f"Error reading Materials sheet: {str(e)}")
+            return jsonify({'error': f'Error reading Materials sheet: {str(e)}'}), 400
+        
+        # Read the Design sheet
+        try:
+            design_df = pd.read_excel(file, sheet_name='Design')
+            print(f"Design sheet read successfully. Shape: {design_df.shape}")
+        except Exception as e:
+            print(f"Error reading Design sheet: {str(e)}")
+            return jsonify({'error': f'Error reading Design sheet: {str(e)}'}), 400
+        
+        # Extract materials from the Materials sheet
+        materials = []
+        for index, row in materials_df.iterrows():
+            # Skip empty rows
+            if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() == '':
+                continue
+            
+            # Extract material data based on expected columns
+            material = {
+                'name': str(row.get('Name', row.iloc[1] if len(row) > 1 else '')).strip(),
+                'alias': str(row.get('Alias', '')).strip(),
+                'cas': str(row.get('CAS', '')).strip(),
+                'smiles': str(row.get('SMILES', '')).strip(),
+                'molecular_weight': str(row.get('Molecular Weight', '')).strip(),
+                'barcode': str(row.get('Lot number', '')).strip(),
+                'role': str(row.get('Role', '')).strip(),
+                'source': 'kit_upload'
+            }
+            
+            # Only add if name is not empty
+            if material['name'] and material['name'] != 'nan':
+                materials.append(material)
+        
+        if not materials:
+            return jsonify({'error': 'No valid materials found in the Materials sheet'}), 400
+        
+        # Extract design data from the Design sheet
+        design_data = {}
+        kit_wells = set()
+        
+        for index, row in design_df.iterrows():
+            # Skip empty rows
+            if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() == '':
+                continue
+            
+            well = str(row.get('Well', row.iloc[0])).strip()
+            if not well or well == 'nan':
+                continue
+            
+            kit_wells.add(well)
+            
+            # Extract compounds and amounts from the row
+            well_materials = []
+            
+            # Look for compound columns (e.g., "Compound 1 name", "Compound 1 amount")
+            col_index = 2  # Start after Well and ID columns
+            while col_index < len(row):
+                if col_index + 1 < len(row):
+                    compound_name = str(row.iloc[col_index]).strip()
+                    compound_amount = str(row.iloc[col_index + 1]).strip()
+                    
+                    if compound_name and compound_name != 'nan' and compound_amount and compound_amount != 'nan':
+                        # Find the material in our materials list
+                        material = next((m for m in materials if m['name'] == compound_name or m['alias'] == compound_name), None)
+                        if material:
+                            well_materials.append({
+                                'name': material['name'],
+                                'alias': material['alias'],
+                                'amount': compound_amount,
+                                'unit': 'μmol'  # Default unit
+                            })
+                
+                col_index += 2  # Move to next compound pair
+            
+            if well_materials:
+                design_data[well] = well_materials
+        
+        # Determine kit size based on wells that actually have content
+        if not design_data:
+            return jsonify({'error': 'No wells with materials found in the Design sheet'}), 400
+        
+        # Use only wells that have materials for kit size calculation
+        content_wells = list(design_data.keys())
+        
+        # Parse well positions to determine kit dimensions
+        rows = set()
+        cols = set()
+        
+        for well in content_wells:
+            if len(well) >= 2:
+                row_letter = well[0]
+                col_number = int(well[1:])
+                rows.add(row_letter)
+                cols.add(col_number)
+        
+        # Convert row letters to numbers for calculation
+        row_numbers = [ord(r) - ord('A') + 1 for r in rows]
+        
+        kit_size = {
+            'rows': len(rows),
+            'columns': len(cols),
+            'total_wells': len(content_wells),
+            'row_range': f"{min(rows)}-{max(rows)}" if len(rows) > 1 else min(rows),
+            'col_range': f"{min(cols)}-{max(cols)}" if len(cols) > 1 else str(min(cols)),
+            'wells': sorted(list(content_wells))
+        }
+        
+        print(f"Kit analysis complete: {len(materials)} materials, {len(design_data)} wells with content")
+        print(f"Kit size calculated: rows={len(rows)}, columns={len(cols)}, wells={sorted(content_wells)}")
+        print(f"Row set: {rows}, Column set: {cols}")
+        print(f"Content wells: {sorted(content_wells)}")
+        
+        return jsonify({
+            'materials': materials,
+            'design': design_data,
+            'kit_size': kit_size,
+            'filename': file.filename
+        }), 200
+        
+    except Exception as e:
+        print(f"Unexpected error in kit analysis: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Kit analysis failed: {str(e)}'}), 500
+
+@app.route('/api/experiment/kit/apply', methods=['POST'])
+def apply_kit():
+    """Apply kit to experiment with specified positioning"""
+    global current_experiment
+    
+    try:
+        print("Kit apply endpoint called")
+        
+        data = request.json
+        materials = data.get('materials', [])
+        design = data.get('design', {})
+        position = data.get('position', '')
+        kit_size = data.get('kit_size', {})
+        destination_plate = data.get('destination_plate', '96')
+        
+        if not materials or not design or not position:
+            return jsonify({'error': 'Missing required data: materials, design, or position'}), 400
+        
+        print(f"Applying kit with position: {position} on {destination_plate}-well plate")
+        
+        # Get current experiment data
+        current_materials = current_experiment.get('materials', [])
+        current_procedure = current_experiment.get('procedure', [])
+        
+        # Add materials to experiment (avoiding duplicates)
+        added_materials = []
+        skipped_materials = []
+        
+        for material in materials:
+            # Check if material already exists (by name, CAS, or SMILES)
+            is_duplicate = any(
+                existing['name'] == material['name'] or
+                (existing.get('cas') and material.get('cas') and existing['cas'] == material['cas']) or
+                (existing.get('smiles') and material.get('smiles') and existing['smiles'] == material['smiles'])
+                for existing in current_materials
+            )
+            
+            if is_duplicate:
+                skipped_materials.append(material['alias'] or material['name'])
+            else:
+                added_materials.append(material)
+                current_materials.append(material)
+        
+        # Apply design to procedure based on position
+        new_procedure_data = apply_kit_design_to_procedure(design, position, kit_size, current_procedure, destination_plate)
+        
+        # Update experiment
+        current_experiment['materials'] = current_materials
+        current_experiment['procedure'] = new_procedure_data
+        
+        return jsonify({
+            'message': 'Kit applied successfully',
+            'added_materials': len(added_materials),
+            'skipped_materials': len(skipped_materials),
+            'procedure_wells_updated': len([w for w in new_procedure_data if any(m['source'] == 'kit_upload' for m in w.get('materials', []))])
+        }), 200
+        
+    except Exception as e:
+        print(f"Unexpected error in kit application: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Kit application failed: {str(e)}'}), 500
+
+def apply_kit_design_to_procedure(design, position, kit_size, current_procedure, destination_plate='96'):
+    """Apply kit design to procedure data with position mapping"""
+    
+    # Create a dictionary for easier lookup of existing procedure data
+    procedure_dict = {item['well']: item for item in current_procedure}
+    
+    # Calculate position mappings based on position parameter
+    well_mappings = calculate_well_mappings(position, kit_size, destination_plate)
+    
+    # Apply design to mapped wells
+    for kit_well, materials in design.items():
+        if kit_well in well_mappings:
+            target_wells = well_mappings[kit_well]
+            
+            for target_well in target_wells:
+                # Get or create procedure entry for target well
+                if target_well not in procedure_dict:
+                    procedure_dict[target_well] = {
+                        'well': target_well,
+                        'materials': []
+                    }
+                
+                # Add materials to the well
+                for material in materials:
+                    # Mark materials as coming from kit
+                    kit_material = material.copy()
+                    kit_material['source'] = 'kit_upload'
+                    
+                    # Check if this material already exists in this well
+                    existing_material = next(
+                        (m for m in procedure_dict[target_well]['materials'] 
+                         if m['name'] == kit_material['name']),
+                        None
+                    )
+                    
+                    if existing_material:
+                        # Add amounts if material already exists
+                        try:
+                            existing_amount = float(existing_material.get('amount', 0))
+                            new_amount = float(kit_material.get('amount', 0))
+                            existing_material['amount'] = str(existing_amount + new_amount)
+                        except:
+                            existing_material['amount'] = kit_material.get('amount', '0')
+                    else:
+                        # Add new material to well
+                        procedure_dict[target_well]['materials'].append(kit_material)
+    
+    # Convert back to list format
+    return list(procedure_dict.values())
+
+def calculate_well_mappings(position, kit_size, destination_plate='96'):
+    """Calculate well mappings based on position and kit size"""
+    kit_wells = kit_size.get('wells', [])
+    mappings = {}
+    
+    print(f"Calculating well mappings for position: {position}")
+    print(f"Destination plate: {destination_plate}")
+    print(f"Kit size: {kit_size}")
+    print(f"Kit wells: {kit_wells}")
+    
+    if not kit_wells:
+        return mappings
+    
+    # Handle new flexible positioning format
+    if isinstance(position, dict):
+        return calculate_flexible_well_mappings(position, kit_size, destination_plate)
+    
+    # Parse kit wells to understand the layout
+    kit_rows = set()
+    kit_cols = set()
+    
+    for well in kit_wells:
+        if len(well) >= 2:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            kit_rows.add(row_letter)
+            kit_cols.add(col_number)
+    
+    kit_rows = sorted(list(kit_rows))
+    kit_cols = sorted(list(kit_cols))
+    
+    print(f"Parsed kit rows: {kit_rows}")
+    print(f"Parsed kit cols: {kit_cols}")
+    
+    # Handle different position types
+    if position == "top-left":
+        # Map to A1-D6 region
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            # Calculate offset within kit
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            # Map to target position
+            target_row = chr(ord('A') + row_offset)
+            target_col = 1 + col_offset
+            
+            mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position == "top-right":
+        # Map to A7-D12 region
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_row = chr(ord('A') + row_offset)
+            target_col = 7 + col_offset
+            
+            mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position == "bottom-left":
+        # Map to E1-H6 region
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_row = chr(ord('E') + row_offset)
+            target_col = 1 + col_offset
+            
+            mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position == "bottom-right":
+        # Map to E7-H12 region
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_row = chr(ord('E') + row_offset)
+            target_col = 7 + col_offset
+            
+            mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position == "all-quadrants":
+        # Map to all 4 quadrants
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_wells = []
+            # Top-left
+            target_wells.append(f"{chr(ord('A') + row_offset)}{1 + col_offset}")
+            # Top-right
+            target_wells.append(f"{chr(ord('A') + row_offset)}{7 + col_offset}")
+            # Bottom-left
+            target_wells.append(f"{chr(ord('E') + row_offset)}{1 + col_offset}")
+            # Bottom-right
+            target_wells.append(f"{chr(ord('E') + row_offset)}{7 + col_offset}")
+            
+            mappings[well] = target_wells
+    
+    elif position.startswith("row-"):
+        # Full row positioning
+        target_row = position.split("-")[1]
+        print(f"Row positioning: target_row = {target_row}")
+        for well in kit_wells:
+            # Extract column number from well (e.g., "A1" -> 1, "A12" -> 12)
+            col_number = int(well[1:])
+            # Find the position of this column in the sorted kit columns
+            col_offset = kit_cols.index(col_number)
+            # Map to the target position starting from column 1
+            target_col = 1 + col_offset
+            print(f"Mapping well {well} (col {col_number}, offset {col_offset}) -> {target_row}{target_col}")
+            mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position.startswith("col-"):
+        # Full column positioning
+        target_col = int(position.split("-")[1])
+        for well in kit_wells:
+            row_letter = well[0]
+            row_offset = kit_rows.index(row_letter)
+            target_row = chr(ord('A') + row_offset)
+            mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position == "top-quadrants":
+        # Map to top 2 quadrants (A1-D6 and A7-D12)
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_wells = []
+            # Top-left
+            target_wells.append(f"{chr(ord('A') + row_offset)}{1 + col_offset}")
+            # Top-right
+            target_wells.append(f"{chr(ord('A') + row_offset)}{7 + col_offset}")
+            
+            mappings[well] = target_wells
+    
+    elif position == "bottom-quadrants":
+        # Map to bottom 2 quadrants (E1-H6 and E7-H12)
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_wells = []
+            # Bottom-left
+            target_wells.append(f"{chr(ord('E') + row_offset)}{1 + col_offset}")
+            # Bottom-right
+            target_wells.append(f"{chr(ord('E') + row_offset)}{7 + col_offset}")
+            
+            mappings[well] = target_wells
+    
+    elif position == "left-quadrants":
+        # Map to left 2 quadrants (A1-D6 and E1-H6)
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_wells = []
+            # Top-left
+            target_wells.append(f"{chr(ord('A') + row_offset)}{1 + col_offset}")
+            # Bottom-left
+            target_wells.append(f"{chr(ord('E') + row_offset)}{1 + col_offset}")
+            
+            mappings[well] = target_wells
+    
+    elif position == "right-quadrants":
+        # Map to right 2 quadrants (A7-D12 and E7-H12)
+        for well in kit_wells:
+            row_letter = well[0]
+            col_number = int(well[1:])
+            
+            row_offset = kit_rows.index(row_letter)
+            col_offset = kit_cols.index(col_number)
+            
+            target_wells = []
+            # Top-right
+            target_wells.append(f"{chr(ord('A') + row_offset)}{7 + col_offset}")
+            # Bottom-right
+            target_wells.append(f"{chr(ord('E') + row_offset)}{7 + col_offset}")
+            
+            mappings[well] = target_wells
+    
+    elif position.startswith("rows-"):
+        # Multiple row positioning (e.g., "rows-A-D")
+        parts = position.split("-")
+        if len(parts) >= 3:
+            start_row = parts[1]
+            end_row = parts[2]
+            start_row_idx = ord(start_row) - ord('A')
+            
+            for well in kit_wells:
+                row_letter = well[0]
+                col_number = int(well[1:])
+                
+                row_offset = kit_rows.index(row_letter)
+                col_offset = kit_cols.index(col_number)
+                
+                target_row = chr(ord('A') + start_row_idx + row_offset)
+                target_col = 1 + col_offset
+                
+                mappings[well] = [f"{target_row}{target_col}"]
+    
+    elif position.startswith("cols-"):
+        # Multiple column positioning (e.g., "cols-1-6")
+        parts = position.split("-")
+        if len(parts) >= 3:
+            start_col = int(parts[1])
+            
+            for well in kit_wells:
+                row_letter = well[0]
+                col_number = int(well[1:])
+                
+                row_offset = kit_rows.index(row_letter)
+                col_offset = kit_cols.index(col_number)
+                
+                target_row = chr(ord('A') + row_offset)
+                target_col = start_col + col_offset
+                
+                mappings[well] = [f"{target_row}{target_col}"]
+    
+    print(f"Final mappings: {mappings}")
+    return mappings
+
+def calculate_flexible_well_mappings(position_data, kit_size, destination_plate='96'):
+    """Calculate well mappings for the new flexible positioning system"""
+    kit_wells = kit_size.get('wells', [])
+    mappings = {}
+    
+    if not kit_wells:
+        return mappings
+    
+    strategy = position_data.get('strategy', 'exact_placement')
+    positions = position_data.get('positions', [])
+    kit_rows = position_data.get('kit_size', {}).get('rows', 1)
+    kit_cols = position_data.get('kit_size', {}).get('cols', 1)
+    
+    print(f"Flexible positioning - Strategy: {strategy}")
+    print(f"Positions: {positions}")
+    print(f"Kit dimensions: {kit_rows}x{kit_cols}")
+    
+    # Get destination plate config
+    plate_configs = {
+        '24': {'rows': 4, 'cols': 6},
+        '48': {'rows': 6, 'cols': 8}, 
+        '96': {'rows': 8, 'cols': 12}
+    }
+    plate_config = plate_configs.get(destination_plate, plate_configs['96'])
+    
+    if strategy == 'exact_placement':
+        # Kit matches plate exactly or default A1 placement
+        start_row = 'A'
+        start_col = 1
+        
+        for well in kit_wells:
+            if len(well) >= 2:
+                kit_row_letter = well[0]
+                kit_col_number = int(well[1:])
+                
+                # Calculate offset from kit origin
+                kit_row_offset = ord(kit_row_letter) - ord('A')
+                kit_col_offset = kit_col_number - 1
+                
+                # Map to destination
+                dest_row = chr(ord(start_row) + kit_row_offset)
+                dest_col = start_col + kit_col_offset
+                
+                if dest_row <= chr(ord('A') + plate_config['rows'] - 1) and dest_col <= plate_config['cols']:
+                    mappings[well] = [f"{dest_row}{dest_col}"]
+    
+    elif strategy == 'row_placement':
+        # Map kit to specific rows
+        for position_id in positions:
+            if position_id.startswith('row-'):
+                target_start_row = position_id.split('-')[1]
+                
+                for well in kit_wells:
+                    if len(well) >= 2:
+                        kit_row_letter = well[0]
+                        kit_col_number = int(well[1:])
+                        
+                        # Calculate kit row offset from kit's starting row
+                        kit_row_offset = ord(kit_row_letter) - ord('A')
+                        
+                        # Map to destination starting from target_start_row
+                        dest_row = chr(ord(target_start_row) + kit_row_offset)
+                        dest_col = kit_col_number
+                        
+                        if ord(dest_row) <= ord('A') + plate_config['rows'] - 1 and dest_col <= plate_config['cols']:
+                            if well not in mappings:
+                                mappings[well] = []
+                            mappings[well].append(f"{dest_row}{dest_col}")
+    
+    elif strategy == 'col_placement':
+        # Map kit to specific columns
+        for position_id in positions:
+            if position_id.startswith('col-'):
+                target_start_col = int(position_id.split('-')[1])
+                
+                for well in kit_wells:
+                    if len(well) >= 2:
+                        kit_row_letter = well[0]
+                        kit_col_number = int(well[1:])
+                        
+                        # Calculate kit column offset from kit's starting column
+                        kit_col_offset = kit_col_number - 1
+                        
+                        # Map to destination starting from target_start_col
+                        dest_row = kit_row_letter
+                        dest_col = target_start_col + kit_col_offset
+                        
+                        if ord(dest_row) <= ord('A') + plate_config['rows'] - 1 and dest_col <= plate_config['cols']:
+                            if well not in mappings:
+                                mappings[well] = []
+                            mappings[well].append(f"{dest_row}{dest_col}")
+    
+    elif strategy == 'quadrant_placement':
+        # Map kit to specific quadrants (adjust based on destination plate)
+        if destination_plate == '48':
+            # 48-well plate (6x8) - 4x6 kit can fit in two positions
+            quadrant_offsets = {
+                'top-left': (0, 0),      # A1 starting position (A1-D6)
+                'top-right': (2, 0),     # C1 starting position (C1-F6) - shifted down 2 rows
+            }
+        else:  # 96-well plate
+            quadrant_offsets = {
+                'top-left': (0, 0),      # A1 starting position
+                'top-right': (0, 6),     # A7 starting position  
+                'bottom-left': (4, 0),   # E1 starting position
+                'bottom-right': (4, 6)   # E7 starting position
+            }
+        
+        for position_id in positions:
+            if position_id in quadrant_offsets:
+                row_offset, col_offset = quadrant_offsets[position_id]
+                
+                for well in kit_wells:
+                    if len(well) >= 2:
+                        kit_row_letter = well[0]
+                        kit_col_number = int(well[1:])
+                        
+                        # Calculate offset from kit origin
+                        kit_row_offset = ord(kit_row_letter) - ord('A')
+                        kit_col_offset = kit_col_number - 1
+                        
+                        # Map to destination quadrant
+                        dest_row = chr(ord('A') + row_offset + kit_row_offset)
+                        dest_col = 1 + col_offset + kit_col_offset
+                        
+                        if ord(dest_row) <= ord('A') + plate_config['rows'] - 1 and dest_col <= plate_config['cols']:
+                            if well not in mappings:
+                                mappings[well] = []
+                            mappings[well].append(f"{dest_row}{dest_col}")
+    
+    elif strategy == 'row_pair_placement':
+        # Map kit to specific row pairs (for 2x12 kits)
+        row_pair_offsets = {
+            'AB': 0,  # Start at row A
+            'CD': 2,  # Start at row C  
+            'EF': 4,  # Start at row E
+            'GH': 6   # Start at row G
+        }
+        
+        for position_id in positions:
+            if position_id in row_pair_offsets:
+                row_offset = row_pair_offsets[position_id]
+                
+                for well in kit_wells:
+                    if len(well) >= 2:
+                        kit_row_letter = well[0]
+                        kit_col_number = int(well[1:])
+                        
+                        # Calculate offset from kit origin
+                        kit_row_offset = ord(kit_row_letter) - ord('A')
+                        
+                        # Map to destination row pair
+                        dest_row = chr(ord('A') + row_offset + kit_row_offset)
+                        dest_col = kit_col_number
+                        
+                        if ord(dest_row) <= ord('A') + plate_config['rows'] - 1 and dest_col <= plate_config['cols']:
+                            if well not in mappings:
+                                mappings[well] = []
+                            mappings[well].append(f"{dest_row}{dest_col}")
+    
+    elif strategy == 'half_placement':
+        # Map kit to upper or lower half (for 4x12 kits)
+        half_offsets = {
+            'upper': 0,  # Start at row A
+            'lower': 4   # Start at row E
+        }
+        
+        for position_id in positions:
+            if position_id in half_offsets:
+                row_offset = half_offsets[position_id]
+                
+                for well in kit_wells:
+                    if len(well) >= 2:
+                        kit_row_letter = well[0]
+                        kit_col_number = int(well[1:])
+                        
+                        # Calculate offset from kit origin
+                        kit_row_offset = ord(kit_row_letter) - ord('A')
+                        
+                        # Map to destination half
+                        dest_row = chr(ord('A') + row_offset + kit_row_offset)
+                        dest_col = kit_col_number
+                        
+                        if ord(dest_row) <= ord('A') + plate_config['rows'] - 1 and dest_col <= plate_config['cols']:
+                            if well not in mappings:
+                                mappings[well] = []
+                            mappings[well].append(f"{dest_row}{dest_col}")
+
+    elif strategy == 'block_placement':
+        # Map kit to specific blocks/quadrants
+        blocks = position_data.get('blocks', [])
+        
+        for block in blocks:
+            start_row = block.get('startRow', 'A')
+            start_col = block.get('startCol', 1)
+            
+            for well in kit_wells:
+                if len(well) >= 2:
+                    kit_row_letter = well[0]
+                    kit_col_number = int(well[1:])
+                    
+                    # Calculate offset from kit origin
+                    kit_row_offset = ord(kit_row_letter) - ord('A')
+                    kit_col_offset = kit_col_number - 1
+                    
+                    # Map to destination block
+                    dest_row = chr(ord(start_row) + kit_row_offset)
+                    dest_col = start_col + kit_col_offset
+                    
+                    if ord(dest_row) <= ord('A') + plate_config['rows'] - 1 and dest_col <= plate_config['cols']:
+                        if well not in mappings:
+                            mappings[well] = []
+                        mappings[well].append(f"{dest_row}{dest_col}")
+    
+    print(f"Flexible mappings result: {mappings}")
+    return mappings
+
+@app.route('/api/experiment/procedure/update-plate-type', methods=['POST'])
+def update_procedure_plate_type():
+    """Update the procedure plate type when kit is applied"""
+    global current_experiment
+    
+    try:
+        data = request.json
+        new_plate_type = data.get('plate_type', '96')
+        current_procedure = data.get('current_procedure', [])
+        
+        print(f"Updating procedure plate type to: {new_plate_type}")
+        
+        # Store the plate type information in the experiment context
+        if 'context' not in current_experiment:
+            current_experiment['context'] = {}
+        
+        current_experiment['context']['plate_type'] = new_plate_type
+        
+        # Validate that all wells in current procedure fit in the new plate type
+        plate_configs = {
+            '24': {'max_row': 'D', 'max_col': 6},
+            '48': {'max_row': 'F', 'max_col': 8},
+            '96': {'max_row': 'H', 'max_col': 12}
+        }
+        
+        plate_config = plate_configs.get(new_plate_type, plate_configs['96'])
+        
+        # Filter out any procedure entries that don't fit in the new plate
+        valid_procedure = []
+        for entry in current_procedure:
+            well = entry.get('well', '')
+            if well and len(well) >= 2:
+                row_letter = well[0]
+                col_number = int(well[1:]) if well[1:].isdigit() else 0
+                
+                if (row_letter <= plate_config['max_row'] and 
+                    col_number <= plate_config['max_col']):
+                    valid_procedure.append(entry)
+        
+        # Update the procedure with valid entries
+        current_experiment['procedure'] = valid_procedure
+        
+        return jsonify({
+            'success': True, 
+            'plate_type': new_plate_type,
+            'filtered_wells': len(current_procedure) - len(valid_procedure)
+        })
+        
+    except Exception as e:
+        print(f"Error updating procedure plate type: {str(e)}")
+        return jsonify({'error': f'Failed to update plate type: {str(e)}'}), 500
+
 @app.route('/api/experiment/results', methods=['GET', 'POST'])
 def experiment_results():
     """Get or update experiment results"""
@@ -1076,6 +1941,31 @@ def export_experiment():
                     row_data.extend(['', '', '', ''])
             
             ws_well_contents.append(row_data)
+    
+    # Procedure Settings sheet
+    ws_procedure_settings = wb.create_sheet("Procedure")
+    
+    # Reaction Conditions section
+    ws_procedure_settings.append(['Reaction Conditions'])
+    ws_procedure_settings.append(['Parameter', 'Value', 'Unit'])
+    ws_procedure_settings.append(['Temperature', current_experiment.get('procedure_settings', {}).get('reactionConditions', {}).get('temperature', ''), 'degC'])
+    ws_procedure_settings.append(['Time', current_experiment.get('procedure_settings', {}).get('reactionConditions', {}).get('time', ''), 'h'])
+    ws_procedure_settings.append(['Pressure', current_experiment.get('procedure_settings', {}).get('reactionConditions', {}).get('pressure', ''), 'bar'])
+    ws_procedure_settings.append(['Wavelength', current_experiment.get('procedure_settings', {}).get('reactionConditions', {}).get('wavelength', ''), 'nm'])
+    ws_procedure_settings.append([''])  # Empty row for spacing
+    ws_procedure_settings.append(['Remarks'])
+    ws_procedure_settings.append([current_experiment.get('procedure_settings', {}).get('reactionConditions', {}).get('remarks', '')])
+    
+    # Analytical Details section
+    ws_procedure_settings.append([''])  # Empty row for spacing
+    ws_procedure_settings.append(['Analytical Details'])
+    ws_procedure_settings.append(['Parameter', 'Value', 'Unit'])
+    ws_procedure_settings.append(['UPLC #', current_experiment.get('procedure_settings', {}).get('analyticalDetails', {}).get('uplcNumber', ''), ''])
+    ws_procedure_settings.append(['Method', current_experiment.get('procedure_settings', {}).get('analyticalDetails', {}).get('method', ''), ''])
+    ws_procedure_settings.append(['Duration', current_experiment.get('procedure_settings', {}).get('analyticalDetails', {}).get('duration', ''), 'min'])
+    ws_procedure_settings.append([''])  # Empty row for spacing
+    ws_procedure_settings.append(['Remarks'])
+    ws_procedure_settings.append([current_experiment.get('procedure_settings', {}).get('analyticalDetails', {}).get('remarks', '')])
     
     # Save to temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp:

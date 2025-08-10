@@ -5,15 +5,19 @@ import Header from "./components/Header";
 import ExperimentContext from "./components/ExperimentContext";
 import Materials from "./components/Materials";
 import Procedure from "./components/Procedure";
+import ProcedureSettings from "./components/ProcedureSettings";
 import AnalyticalData from "./components/AnalyticalData";
 import Results from "./components/Results";
 import Heatmap from "./components/Heatmap";
+import Help from "./components/Help";
 import { ToastProvider } from "./components/ToastContext";
 import ToastContainer from "./components/Toast";
 import "./App.css";
 
 function App() {
   const [activeTab, setActiveTab] = useState("context");
+  const [showHelp, setShowHelp] = useState(false);
+  const [helpTabId, setHelpTabId] = useState(null);
 
   const tabs = [
     {
@@ -23,6 +27,7 @@ function App() {
     },
     { id: "materials", label: "Materials", component: Materials },
     { id: "procedure", label: "Design", component: Procedure },
+    { id: "procedure-settings", label: "Procedure", component: ProcedureSettings },
     { id: "analytical", label: "Analytical Data", component: AnalyticalData },
     { id: "results", label: "Results", component: Results },
     { id: "heatmap", label: "Heatmap", component: Heatmap },
@@ -44,10 +49,13 @@ function App() {
   };
 
   const handleShowHelp = (tabId) => {
-    // Trigger help modal for the specific tab
-    // This will be handled by each component's internal help system
-    const helpEvent = new CustomEvent('showHelp', { detail: { tabId } });
-    window.dispatchEvent(helpEvent);
+    setHelpTabId(tabId);
+    setShowHelp(true);
+  };
+
+  const handleCloseHelp = () => {
+    setShowHelp(false);
+    setHelpTabId(null);
   };
 
   return (
@@ -66,11 +74,18 @@ function App() {
               {activeTab === "context" && <ExperimentContext />}
               {activeTab === "materials" && <Materials />}
               {activeTab === "procedure" && <Procedure />}
+              {activeTab === "procedure-settings" && <ProcedureSettings />}
               {activeTab === "analytical" && <AnalyticalData />}
               {activeTab === "results" && <Results />}
               {activeTab === "heatmap" && <Heatmap />}
             </div>
           </div>
+          
+          <Help 
+            tabId={helpTabId} 
+            visible={showHelp} 
+            onClose={handleCloseHelp} 
+          />
           
           <ToastContainer />
         </div>

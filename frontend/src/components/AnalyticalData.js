@@ -6,7 +6,7 @@ const AnalyticalData = () => {
   const [materials, setMaterials] = useState([]);
   const [context, setContext] = useState({});
   const [selectedCompounds, setSelectedCompounds] = useState([]);
-  const [showHelpModal, setShowHelpModal] = useState(false);
+
   const [selectedRoles, setSelectedRoles] = useState(['Reactant', 'Target product', 'Product', 'Solvent', 'Reagent', 'Internal standard']);
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -19,18 +19,7 @@ const AnalyticalData = () => {
     loadContext();
     loadSelectedCompounds();
     
-    // Listen for help events from header
-    const handleHelpEvent = (event) => {
-      if (event.detail.tabId === 'analytical') {
-        setShowHelpModal(true);
-      }
-    };
-    
-    window.addEventListener('showHelp', handleHelpEvent);
-    
-    return () => {
-      window.removeEventListener('showHelp', handleHelpEvent);
-    };
+
   }, []);
 
   const loadMaterials = async () => {
@@ -485,68 +474,7 @@ const AnalyticalData = () => {
         </div>
       </div>
 
-      {/* Help Modal */}
-      {showHelpModal && (
-        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "800px", width: "95%" }}>
-            <div className="modal-header">
-              <h3>Analytical Data Help</h3>
-              <button
-                className="modal-close"
-                onClick={() => setShowHelpModal(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body" style={{ textAlign: "left" }}>
-              <h4>Analytical Data Features:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>
-                  <strong>Generate Template:</strong> Create Excel templates with selected compounds for data collection.
-                </li>
-                <li>
-                  <strong>Upload Results:</strong> Upload completed analytical data files for processing and analysis.
-                </li>
-                <li>
-                  <strong>Compound Selection:</strong> Choose compounds from Materials or add custom compounds manually.
-                </li>
-                <li>
-                  <strong>Well Plate Format:</strong> Templates include all wells with automatic numbering (A1-H12 for 96-well, A1-D6 for 24-well).
-                </li>
-                <li>
-                  <strong>Sample IDs:</strong> Automatically generated using ELN number from Context tab.
-                </li>
-              </ul>
-              
-              <h4>Instructions:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li><strong>Generate Template:</strong> Select compounds and export Excel templates for data collection</li>
-                <li><strong>Upload Results:</strong> Upload completed analytical data files for processing</li>
-                <li>Ensure ELN number is set in Context tab before generating templates</li>
-                <li>Use consistent compound names across all experiment sections</li>
-              </ul>
-              
-              <h4>Workflow:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>1. Generate template with selected compounds</li>
-                <li>2. Fill in chromatogram areas in the exported file</li>
-                <li>3. Upload completed results for processing</li>
-                <li>4. Review analysis and proceed to Results tab</li>
-              </ul>
-              
-              <h4>Best Practices:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6", textAlign: "left" }}>
-                <li>Use consistent compound names across all experiment sections</li>
-                <li>Ensure ELN number is set in Context tab before generating templates</li>
-                <li>Document chromatographic conditions and parameters</li>
-                <li>Use appropriate units for area values (e.g., mAU·s)</li>
-              </ul>
-            </div>
-            <div className="modal-footer">
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

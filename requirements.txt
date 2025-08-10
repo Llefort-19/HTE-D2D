@@ -1,9 +1,17 @@
+# Core framework and API
 flask==3.0.2
 flask-cors==4.0.0
+
+# Data processing and Excel support
 pandas==2.2.1
 openpyxl==3.1.5
 numpy==1.26.4
-python-dotenv==1.0.1
-rdkit==2024.9.1
+
+# Image processing
 pillow==10.2.0
-cairosvg==2.7.1 
+
+# Environment configuration
+python-dotenv==1.0.1
+
+# Chemical informatics and visualization
+rdkit==2025.3.5 

@@ -216,9 +216,18 @@ def load_inventory():
     global inventory_data
     try:
         inventory_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Inventory.xlsx')
-        inventory_data = pd.read_excel(inventory_path)
+        # Read Excel file without parsing dates to avoid NaTType issues
+        inventory_data = pd.read_excel(inventory_path, parse_dates=False)
+        
+        # Convert all columns to string to avoid any datetime/NaT issues
+        for col in inventory_data.columns:
+            inventory_data[col] = inventory_data[col].astype(str)
+            # Replace 'nan' strings with None for better JSON handling
+            inventory_data[col] = inventory_data[col].replace('nan', None)
+        
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Error loading inventory: {e}")
         return False
 
 @app.route('/api/inventory', methods=['GET'])
@@ -228,8 +237,26 @@ def get_inventory():
         if not load_inventory():
             return jsonify({'error': 'Failed to load inventory'}), 500
     
-    chemicals = inventory_data.to_dict('records') if inventory_data is not None else []
-    return jsonify(chemicals)
+    if inventory_data is not None:
+        # Clean the data before JSON serialization to handle NaT values
+        records = inventory_data.to_dict('records')
+        cleaned_records = []
+        
+        for record in records:
+            cleaned_record = {}
+            for key, value in record.items():
+                # Handle pandas NaT values and other problematic types
+                if pd.isna(value) or (hasattr(value, 'year') and pd.isna(value)):
+                    cleaned_record[key] = None
+                elif hasattr(value, 'isoformat'):  # datetime objects
+                    cleaned_record[key] = value.isoformat()
+                else:
+                    cleaned_record[key] = value
+            cleaned_records.append(cleaned_record)
+        
+        return jsonify(cleaned_records)
+    else:
+        return jsonify([])
 
 @app.route('/api/inventory/search', methods=['GET'])
 def search_inventory():
@@ -255,14 +282,23 @@ def search_inventory():
     private_results = pd.DataFrame()
     if os.path.exists(private_path):
         try:
-            private_df = pd.read_excel(private_path)
+            # Read private inventory without parsing dates to avoid NaTType issues
+            private_df = pd.read_excel(private_path, parse_dates=False)
+            
+            # Convert all columns to string to avoid any datetime/NaT issues
+            for col in private_df.columns:
+                private_df[col] = private_df[col].astype(str)
+                # Replace 'nan' strings with None for better JSON handling
+                private_df[col] = private_df[col].replace('nan', None)
+            
             private_results = private_df[
                 private_df['chemical_name'].str.lower().str.contains(query, na=False) |
                 private_df['common_name'].str.lower().str.contains(query, na=False) |
                 private_df['cas_number'].astype(str).str.lower().str.contains(query, na=False) |
                 private_df['smiles'].astype(str).str.lower().str.contains(query, na=False)
             ]
-        except Exception:
+        except Exception as e:
+            print(f"Error loading private inventory: {e}")
             pass
     
     # Combine with main inventory priority
@@ -286,7 +322,27 @@ def search_inventory():
     else:
         combined = pd.DataFrame()
     
-    return jsonify(combined.to_dict('records') if not combined.empty else [])
+    # Clean the data before JSON serialization to handle NaT values
+    if not combined.empty:
+        # Convert DataFrame to records and clean any problematic values
+        records = combined.to_dict('records')
+        cleaned_records = []
+        
+        for record in records:
+            cleaned_record = {}
+            for key, value in record.items():
+                # Handle pandas NaT values and other problematic types
+                if pd.isna(value) or (hasattr(value, 'year') and pd.isna(value)):
+                    cleaned_record[key] = None
+                elif hasattr(value, 'isoformat'):  # datetime objects
+                    cleaned_record[key] = value.isoformat()
+                else:
+                    cleaned_record[key] = value
+            cleaned_records.append(cleaned_record)
+        
+        return jsonify(cleaned_records)
+    else:
+        return jsonify([])
 
 @app.route('/api/solvent/search', methods=['GET'])
 def search_solvents():

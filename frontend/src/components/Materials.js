@@ -563,6 +563,17 @@ const Materials = () => {
     closeKitPositionModal();
   };
 
+  const handleRemoveAllMaterials = async () => {
+    if (window.confirm("Are you sure you want to remove all materials from your list?")) {
+      try {
+        await saveMaterials([]); // Save an empty array to remove all materials
+        showSuccess("All materials removed successfully!");
+      } catch (error) {
+        showError("Error removing all materials: " + error.message);
+      }
+    }
+  };
+
   return (
     <div className="card">
       {/* Action buttons */}
@@ -646,6 +657,22 @@ const Materials = () => {
           >
             📦 Upload Kit
           </button>
+          {materials.length > 0 && (
+            <button 
+              className="btn btn-warning" 
+              onClick={handleRemoveAllMaterials}
+              style={{ 
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: "500",
+                borderRadius: "6px",
+                transition: "all 0.2s ease",
+                marginLeft: "auto"
+              }}
+            >
+              🗑️ Clear Table
+            </button>
+          )}
         </div>
       </div>
 

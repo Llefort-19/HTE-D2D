@@ -489,8 +489,9 @@ const Procedure = () => {
     const sortedAmounts = [...allAmounts].sort((a, b) => a - b);
     const currentAmount = selectedMaterialInWell.amount;
     
-    // Find the percentile of the current amount
-    const percentile = sortedAmounts.findIndex(amount => amount >= currentAmount) / sortedAmounts.length;
+    // Count how many values are less than the current amount
+    const valuesLessThan = sortedAmounts.filter(amount => amount < currentAmount).length;
+    const percentile = valuesLessThan / (sortedAmounts.length - 1);
     
     // Create discrete categories based on percentiles
     if (percentile <= 0.25) return 'low';      // Bottom 25%

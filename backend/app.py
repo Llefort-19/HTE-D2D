@@ -47,7 +47,10 @@ current_experiment = {
             'remarks': ''
         }
     },
-    'analytical_data': [],
+    'analytical_data': {
+        'selectedCompounds': [],
+        'uploadedFiles': []
+    },
     'results': []
 }
 

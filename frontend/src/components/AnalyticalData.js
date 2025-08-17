@@ -18,8 +18,20 @@ const AnalyticalData = () => {
     loadMaterials();
     loadContext();
     loadSelectedCompounds();
-    
+  }, []);
 
+  // Refresh data when component becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadSelectedCompounds();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const loadMaterials = async () => {
@@ -44,19 +56,40 @@ const AnalyticalData = () => {
     try {
       const response = await axios.get("/api/experiment/analytical");
       const analyticalData = response.data || {};
-      setSelectedCompounds(analyticalData.selectedCompounds || []);
+      
+      // Handle different possible data structures
+      let compounds = [];
+      if (analyticalData.selectedCompounds) {
+        compounds = analyticalData.selectedCompounds;
+      } else if (Array.isArray(analyticalData)) {
+        // Handle old format where analytical_data was just an array
+        compounds = [];
+      }
+      
+      console.log("Loaded selected compounds:", compounds);
+      setSelectedCompounds(compounds);
     } catch (error) {
       console.error("Error loading selected compounds:", error);
+      setSelectedCompounds([]);
     }
   };
 
   const saveSelectedCompounds = async (compounds) => {
     try {
-      await axios.post("/api/experiment/analytical", {
+      console.log("Saving selected compounds:", compounds);
+      const response = await axios.post("/api/experiment/analytical", {
         selectedCompounds: compounds
       });
+      console.log("Selected compounds saved successfully:", response.data);
     } catch (error) {
       console.error("Error saving selected compounds:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText
+      });
+      showError("Error saving compound selection: " + (error.response?.data?.error || error.message));
     }
   };
 
@@ -363,20 +396,42 @@ const AnalyticalData = () => {
                         <span style={{ flex: 1 }}>{compound}</span>
                         <div style={{ display: "flex", gap: "4px" }}>
                           <button
-                            className="btn btn-sm btn-outline-secondary"
                             onClick={() => moveCompoundUp(index)}
                             disabled={index === 0}
-                            title="Move up"
+                            style={{ 
+                              padding: "5px 10px", 
+                              fontSize: "12px",
+                              marginRight: "4px",
+                              opacity: index === 0 ? 0.5 : 1,
+                              backgroundColor: "#6c757d",
+                              border: "1px solid #6c757d",
+                              color: "white",
+                              borderRadius: "4px",
+                              cursor: index === 0 ? "not-allowed" : "pointer",
+                              transition: "all 0.2s ease"
+                            }}
+                            title="Move Up"
                           >
-                            ↑
+                            ▲
                           </button>
                           <button
-                            className="btn btn-sm btn-outline-secondary"
                             onClick={() => moveCompoundDown(index)}
                             disabled={index === selectedCompounds.length - 1}
-                            title="Move down"
+                            style={{ 
+                              padding: "5px 10px", 
+                              fontSize: "12px",
+                              marginRight: "4px",
+                              opacity: index === selectedCompounds.length - 1 ? 0.5 : 1,
+                              backgroundColor: "#6c757d",
+                              border: "1px solid #6c757d",
+                              color: "white",
+                              borderRadius: "4px",
+                              cursor: index === selectedCompounds.length - 1 ? "not-allowed" : "pointer",
+                              transition: "all 0.2s ease"
+                            }}
+                            title="Move Down"
                           >
-                            ↓
+                            ▼
                           </button>
                           <button
                             className="btn btn-sm btn-outline-danger"

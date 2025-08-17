@@ -133,7 +133,7 @@ const MaterialTable = memo(({
             <th>SMILES</th>
             <th>Barcode</th>
             <th>Role</th>
-            <th>Actions</th>
+            <th style={{ textAlign: "center" }}>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -158,7 +158,7 @@ const MaterialTable = memo(({
                   ))}
                 </select>
               </td>
-              <td>{renderActionButtons(material, index)}</td>
+              <td style={{ textAlign: "center" }}>{renderActionButtons(material, index)}</td>
             </tr>
           ))}
         </tbody>

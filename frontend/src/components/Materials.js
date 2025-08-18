@@ -150,7 +150,6 @@ const Materials = () => {
     try {
       await axios.post("/api/experiment/materials", updatedMaterials);
       setMaterials(updatedMaterials);
-      showSuccess("Materials updated successfully!");
     } catch (error) {
       console.error("Error saving materials:", error);
       showError("Error saving materials: " + error.message);
@@ -474,11 +473,17 @@ const Materials = () => {
       await loadMaterials();
       
       // Show success message with details
-      const { added_materials, skipped_materials } = response.data;
+      const { added_materials, skipped_materials, inventory_matches, excel_uploads } = response.data;
       
       let message = `Successfully uploaded ${added_materials} material(s) from Excel file.`;
+      if (inventory_matches > 0) {
+        message += ` ${inventory_matches} material(s) matched inventory data (using inventory information).`;
+      }
+      if (excel_uploads > 0) {
+        message += ` ${excel_uploads} material(s) used uploaded data.`;
+      }
       if (skipped_materials > 0) {
-        message += ` ${skipped_materials} material(s) were skipped (already exist).`;
+        message += ` ${skipped_materials} material(s) were skipped (already exist in current experiment).`;
       }
       
       showSuccess(message);

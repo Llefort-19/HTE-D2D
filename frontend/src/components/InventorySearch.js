@@ -164,7 +164,7 @@ const InventorySearch = ({
   const addFromInventory = async (chemical) => {
     const material = {
       name: chemical.chemical_name || chemical.name,
-      alias: chemical.common_name || chemical.alias || "",
+      alias: chemical.alias || "",
       cas: chemical.cas_number || chemical.cas || "",
       molecular_weight: chemical.molecular_weight || "",
       smiles: chemical.smiles || "",
@@ -191,7 +191,7 @@ const InventorySearch = ({
       // Convert all selected items to material format
       const materialsToAdd = selectedInventoryItems.map(item => ({
         name: item.chemical_name || item.name,
-        alias: item.common_name || item.alias || "",
+        alias: item.alias || "",
         cas: item.cas_number || item.cas || "",
         molecular_weight: item.molecular_weight || "",
         smiles: item.smiles || "",
@@ -308,7 +308,7 @@ const InventorySearch = ({
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ flex: "1", fontSize: "13px" }}>
                               <span style={{ fontWeight: "bold", color: "var(--color-heading)" }}>
-                                {chemical.common_name || chemical.chemical_name || chemical.name}
+                                {chemical.alias || chemical.chemical_name || chemical.name}
                               </span>
                               <span style={{ color: "var(--color-text-light)", marginLeft: "12px" }}>
                                 CAS: {chemical.cas_number || chemical.cas || "N/A"}
@@ -364,7 +364,7 @@ const InventorySearch = ({
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <div style={{ flex: "1", fontSize: "13px" }}>
                               <span style={{ fontWeight: "bold", color: "var(--color-heading)" }}>
-                                {chemical.common_name || chemical.chemical_name || chemical.name}
+                                {chemical.alias || chemical.chemical_name || chemical.name}
                               </span>
                               <span style={{ color: "var(--color-text-light)", marginLeft: "12px" }}>
                                 CAS: {chemical.cas_number || chemical.cas || "N/A"}

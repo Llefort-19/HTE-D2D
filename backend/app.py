@@ -272,7 +272,7 @@ def search_inventory():
     if inventory_data is not None:
         main_results = inventory_data[
             inventory_data['chemical_name'].str.lower().str.contains(query, na=False) |
-            inventory_data['common_name'].str.lower().str.contains(query, na=False) |
+            inventory_data['alias'].str.lower().str.contains(query, na=False) |
             inventory_data['cas_number'].astype(str).str.lower().str.contains(query, na=False) |
             inventory_data['smiles'].astype(str).str.lower().str.contains(query, na=False)
         ]
@@ -293,7 +293,7 @@ def search_inventory():
             
             private_results = private_df[
                 private_df['chemical_name'].str.lower().str.contains(query, na=False) |
-                private_df['common_name'].str.lower().str.contains(query, na=False) |
+                private_df['alias'].str.lower().str.contains(query, na=False) |
                 private_df['cas_number'].astype(str).str.lower().str.contains(query, na=False) |
                 private_df['smiles'].astype(str).str.lower().str.contains(query, na=False)
             ]
@@ -513,21 +513,29 @@ def get_solvent_classes():
 def add_to_private_inventory():
     chemical = request.json
     private_path = os.path.join(os.path.dirname(__file__), '..', 'Private_Inventory.xlsx')
-    headers = ['chemical_name', 'common_name', 'cas_number', 'molecular_weight', 'smiles', 'barcode', 'date_added', 'notes']
+    headers = ['chemical_name', 'alias', 'cas_number', 'molecular_weight', 'smiles', 'barcode']
 
     # Create file if it doesn't exist
     if not os.path.exists(private_path):
         wb = Workbook()
-        ws = wb.active
-        if ws is None:
-            ws = wb.create_sheet("Private Inventory")
-        else:
-            ws.title = "Private Inventory"
+        # Remove the default sheet and create a new one with the correct name
+        wb.remove(wb.active)
+        ws = wb.create_sheet("Private Inventory")
         ws.append(headers)
         wb.save(private_path)
 
     # Load and check for duplicates
     df = pd.read_excel(private_path)
+    
+    # Ensure the DataFrame has only the correct columns
+    required_columns = ['chemical_name', 'alias', 'cas_number', 'molecular_weight', 'smiles', 'barcode']
+    for col in required_columns:
+        if col not in df.columns:
+            df[col] = ''
+    
+    # Remove any extra columns that shouldn't be there
+    df = df[required_columns]
+    
     if ((df['chemical_name'].str.lower() == chemical['name'].lower()) | 
         (df['cas_number'].astype(str) == str(chemical.get('cas', '')))).any():
         return jsonify({'message': 'Already exists'}), 200
@@ -535,17 +543,47 @@ def add_to_private_inventory():
     # Append and save
     new_row = {
         'chemical_name': chemical['name'],
-        'common_name': chemical.get('alias', ''),
+        'alias': chemical.get('alias', ''),
         'cas_number': chemical.get('cas', ''),
         'molecular_weight': chemical.get('molecular_weight', ''),
         'smiles': chemical.get('smiles', ''),
-        'barcode': chemical.get('barcode', ''),
-        'date_added': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'notes': chemical.get('notes', '')
+        'barcode': chemical.get('barcode', '')
     }
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_excel(private_path, index=False)
     return jsonify({'message': 'Added'}), 200
+
+@app.route('/api/inventory/private/fix-structure', methods=['POST'])
+def fix_private_inventory_structure():
+    """Force fix the private inventory structure to have only the correct columns"""
+    private_path = os.path.join(os.path.dirname(__file__), '..', 'Private_Inventory.xlsx')
+    
+    try:
+        if os.path.exists(private_path):
+            # Read existing data
+            df = pd.read_excel(private_path)
+            
+            # Define the correct columns
+            required_columns = ['chemical_name', 'alias', 'cas_number', 'molecular_weight', 'smiles', 'barcode']
+            
+            # Create a new DataFrame with only the required columns
+            new_df = pd.DataFrame()
+            
+            # Copy data from existing columns if they exist
+            for col in required_columns:
+                if col in df.columns:
+                    new_df[col] = df[col]
+                else:
+                    new_df[col] = ''
+            
+            # Save the corrected structure
+            new_df.to_excel(private_path, index=False)
+            
+            return jsonify({'message': 'Private inventory structure fixed successfully'}), 200
+        else:
+            return jsonify({'message': 'No private inventory file found'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Failed to fix structure: {str(e)}'}), 500
 
 @app.route('/api/inventory/private/check', methods=['POST'])
 def check_private_inventory():
@@ -561,7 +599,7 @@ def check_private_inventory():
         
         # Check for matches by name, alias, CAS, or SMILES
         name_match = df['chemical_name'].str.lower() == chemical.get('name', '').lower()
-        alias_match = df['common_name'].str.lower() == chemical.get('alias', '').lower()
+        alias_match = df['alias'].str.lower() == chemical.get('alias', '').lower()
         cas_match = df['cas_number'].astype(str) == str(chemical.get('cas', ''))
         smiles_match = df['smiles'].astype(str).str.lower() == str(chemical.get('smiles', '')).lower()
         
@@ -858,6 +896,11 @@ def upload_materials_from_excel():
     try:
         print("Materials upload endpoint called")
         
+        # Ensure inventory is loaded
+        if inventory_data is None:
+            if not load_inventory():
+                print("Warning: Could not load inventory data")
+        
         if 'file' not in request.files:
             print("No file in request.files")
             return jsonify({'error': 'No file provided'}), 400
@@ -905,15 +948,25 @@ def upload_materials_from_excel():
             if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() == '':
                 continue
             
-            # Extract material data based on expected columns
+            # Extract material data based on expected columns (support both old and new column names)
+            # Helper function to clean and validate field values
+            def clean_field(value):
+                if pd.isna(value):
+                    return ''
+                str_value = str(value).strip()
+                # Return empty string for common "empty" representations
+                if str_value.lower() in ['nan', 'null', 'none', '']:
+                    return ''
+                return str_value
+            
             material = {
-                'name': str(row.get('Name', row.iloc[1] if len(row) > 1 else '')).strip(),
-                'alias': str(row.get('Alias', '')).strip(),
-                'cas': str(row.get('CAS', '')).strip(),
-                'smiles': str(row.get('SMILES', '')).strip(),
-                'molecular_weight': str(row.get('Molecular Weight', '')).strip(),
-                'barcode': str(row.get('Lot number', '')).strip(),
-                'role': str(row.get('Role', '')).strip(),
+                'name': clean_field(row.get('chemical_name', row.get('Chemical_Name', row.get('Name', row.iloc[1] if len(row) > 1 else '')))),
+                'alias': clean_field(row.get('alias', row.get('Alias', ''))),
+                'cas': clean_field(row.get('cas_number', row.get('CAS_Number', row.get('CAS', '')))),
+                'smiles': clean_field(row.get('smiles', row.get('SMILES', ''))),
+                'molecular_weight': clean_field(row.get('molecular_weight', row.get('Molecular_Weight', row.get('Molecular Weight', '')))),
+                'barcode': clean_field(row.get('barcode', row.get('Barcode', row.get('Lot number', '')))),
+                'role': clean_field(row.get('role', row.get('Role', ''))),
                 'source': 'excel_upload'
             }
             
@@ -925,6 +978,8 @@ def upload_materials_from_excel():
             return jsonify({'error': 'No valid materials found in the Materials sheet'}), 400
         
         print(f"Extracted {len(materials)} materials from Excel file")
+        for i, mat in enumerate(materials):
+            print(f"  Material {i+1}: {mat['name']} - CAS: {mat['cas']} - Alias: {mat['alias']}")
         
         # Get current materials
         current_materials = current_experiment.get('materials', [])
@@ -933,8 +988,10 @@ def upload_materials_from_excel():
         added_materials = []
         skipped_materials = []
         
+        # First, check all materials against the original current_materials list
         for material in materials:
-            # Check if material already exists (by name, CAS, or SMILES)
+            print(f"Processing material: {material['name']} (CAS: {material['cas']})")
+            # Check if material already exists in current experiment (by name, CAS, or SMILES)
             is_duplicate = any(
                 existing['name'] == material['name'] or
                 (existing.get('cas') and material.get('cas') and existing['cas'] == material['cas']) or
@@ -943,13 +1000,82 @@ def upload_materials_from_excel():
             )
             
             if is_duplicate:
+                print(f"  -> Skipping {material['name']} (duplicate)")
                 skipped_materials.append(material['alias'] or material['name'])
             else:
-                added_materials.append(material)
-                current_materials.append(material)
+                # Check if material exists in inventory or private inventory by CAS number
+                inventory_material = None
+                if material.get('cas') and material['cas'].strip():
+                    # Check main inventory
+                    if inventory_data is not None:
+                        inventory_match = inventory_data[
+                            inventory_data['cas_number'].astype(str).str.strip() == material['cas'].strip()
+                        ]
+                        if not inventory_match.empty:
+                            inventory_material = inventory_match.iloc[0].to_dict()
+                            print(f"  -> Found in main inventory: {inventory_material.get('chemical_name')}")
+                        else:
+                            print(f"  -> Not found in main inventory")
+                    
+                    # Check private inventory if not found in main inventory
+                    if inventory_material is None:
+                        private_path = os.path.join(os.path.dirname(__file__), '..', 'Private_Inventory.xlsx')
+                        if os.path.exists(private_path):
+                            try:
+                                private_df = pd.read_excel(private_path, parse_dates=False)
+                                # Convert all columns to string to avoid NaTType issues
+                                for col in private_df.columns:
+                                    private_df[col] = private_df[col].astype(str)
+                                    private_df[col] = private_df[col].replace('nan', None)
+                                
+                                private_match = private_df[
+                                    private_df['cas_number'].astype(str).str.strip() == material['cas'].strip()
+                                ]
+                                if not private_match.empty:
+                                    inventory_material = private_match.iloc[0].to_dict()
+                                    print(f"  -> Found in private inventory: {inventory_material.get('chemical_name')}")
+                                else:
+                                    print(f"  -> Not found in private inventory")
+                            except Exception as e:
+                                print(f"Error checking private inventory: {e}")
+                
+                # Use inventory data if found, otherwise use uploaded data
+                if inventory_material:
+                    print(f"  -> Using inventory data for {material['name']}")
+                    # Use inventory data but preserve some uploaded data
+                    final_material = {
+                        'name': inventory_material.get('chemical_name', material['name']),
+                        'alias': material.get('alias', inventory_material.get('alias', '')),
+                        'cas': inventory_material.get('cas_number', material['cas']),
+                        'smiles': inventory_material.get('smiles', material['smiles']),
+                        'molecular_weight': inventory_material.get('molecular_weight', material['molecular_weight']),
+                        'barcode': material.get('barcode', inventory_material.get('barcode', '')),
+                        'role': material.get('role', ''),
+                        'source': 'inventory_match',
+                        'inventory_location': inventory_material.get('location', ''),
+                        'supplier': inventory_material.get('supplier', '')
+                    }
+                else:
+                    print(f"  -> Using uploaded data for {material['name']}")
+                    # Use uploaded data
+                    final_material = material.copy()
+                    final_material['source'] = 'excel_upload'
+                
+                added_materials.append(final_material)
+        
+        # Then, add all new materials to the current_materials list at once
+        current_materials.extend(added_materials)
         
         # Update the experiment materials
         current_experiment['materials'] = current_materials
+        
+        # Count materials by source
+        inventory_matches = len([m for m in added_materials if m.get('source') == 'inventory_match'])
+        excel_uploads = len([m for m in added_materials if m.get('source') == 'excel_upload'])
+        
+        print(f"Final results: Added {len(added_materials)} materials ({inventory_matches} from inventory, {excel_uploads} from upload data)")
+        for i, mat in enumerate(added_materials):
+            print(f"  Added {i+1}: {mat['name']} (source: {mat['source']})")
         
         return jsonify({
             'message': 'Materials uploaded successfully',
@@ -957,6 +1083,8 @@ def upload_materials_from_excel():
             'total_materials': len(materials),
             'added_materials': len(added_materials),
             'skipped_materials': len(skipped_materials),
+            'inventory_matches': inventory_matches,
+            'excel_uploads': excel_uploads,
             'added_material_names': [m['alias'] or m['name'] for m in added_materials],
             'skipped_material_names': skipped_materials
         }), 200
@@ -1032,15 +1160,25 @@ def analyze_kit():
             if pd.isna(row.iloc[0]) or str(row.iloc[0]).strip() == '':
                 continue
             
-            # Extract material data based on expected columns
+            # Extract material data based on expected columns (support both old and new column names)
+            # Helper function to clean and validate field values
+            def clean_field(value):
+                if pd.isna(value):
+                    return ''
+                str_value = str(value).strip()
+                # Return empty string for common "empty" representations
+                if str_value.lower() in ['nan', 'null', 'none', '']:
+                    return ''
+                return str_value
+            
             material = {
-                'name': str(row.get('Name', row.iloc[1] if len(row) > 1 else '')).strip(),
-                'alias': str(row.get('Alias', '')).strip(),
-                'cas': str(row.get('CAS', '')).strip(),
-                'smiles': str(row.get('SMILES', '')).strip(),
-                'molecular_weight': str(row.get('Molecular Weight', '')).strip(),
-                'barcode': str(row.get('Lot number', '')).strip(),
-                'role': str(row.get('Role', '')).strip(),
+                'name': clean_field(row.get('chemical_name', row.get('Chemical_Name', row.get('Name', row.iloc[1] if len(row) > 1 else '')))),
+                'alias': clean_field(row.get('alias', row.get('Alias', ''))),
+                'cas': clean_field(row.get('cas_number', row.get('CAS_Number', row.get('CAS', '')))),
+                'smiles': clean_field(row.get('smiles', row.get('SMILES', ''))),
+                'molecular_weight': clean_field(row.get('molecular_weight', row.get('Molecular_Weight', row.get('Molecular Weight', '')))),
+                'barcode': clean_field(row.get('barcode', row.get('Barcode', row.get('Lot number', '')))),
+                'role': clean_field(row.get('role', row.get('Role', ''))),
                 'source': 'kit_upload'
             }
             
@@ -1805,24 +1943,54 @@ def export_experiment():
     # Materials sheet
     ws_materials = wb.create_sheet("Materials")
     if current_experiment.get('materials'):
-        # Add headers
-        headers = ['Nr', 'Name', 'Alias', 'CAS', 'SMILES', 'Lot number', 'Role', 
-                  'Quantification level', 'Analytical wavelength', 'RRF to IS']
+        # Add headers - match inventory column names exactly (lowercase) and order
+        headers = ['Nr', 'chemical_name', 'alias', 'cas_number', 'molecular_weight', 'smiles', 'barcode', 'role', 'source', 'supplier']
         ws_materials.append(headers)
         
-        # Add materials
+        # Load inventory data to enrich materials
+        inventory_enrichment = {}
+        if inventory_data is not None:
+            for _, inv_item in inventory_data.iterrows():
+                # Create lookup keys for matching
+                name_key = str(inv_item.get('chemical_name', '')).lower()
+                cas_key = str(inv_item.get('cas_number', '')).lower()
+                alias_key = str(inv_item.get('alias', '')).lower()
+                
+                # Store inventory data for matching
+                inventory_enrichment[name_key] = inv_item.to_dict()
+                if cas_key and cas_key != 'nan':
+                    inventory_enrichment[cas_key] = inv_item.to_dict()
+                if alias_key and alias_key != 'nan':
+                    inventory_enrichment[alias_key] = inv_item.to_dict()
+        
+        # Add materials with enriched data from inventory
         for i, material in enumerate(current_experiment['materials'], 1):
+            # Try to find matching inventory data
+            enriched_data = {}
+            material_name = str(material.get('name', '')).lower()
+            material_cas = str(material.get('cas', '')).lower()
+            material_alias = str(material.get('alias', '')).lower()
+            
+            # Look for matches in inventory
+            if material_name in inventory_enrichment:
+                enriched_data = inventory_enrichment[material_name]
+            elif material_cas in inventory_enrichment and material_cas != 'nan':
+                enriched_data = inventory_enrichment[material_cas]
+            elif material_alias in inventory_enrichment and material_alias != 'nan':
+                enriched_data = inventory_enrichment[material_alias]
+            
+            # Use material data first, then enrich with inventory data
             row = [
                 i,
                 material.get('name', ''),
-                material.get('alias', ''),
-                material.get('cas', ''),
-                material.get('smiles', ''),
-                material.get('lot_number', ''),
+                material.get('alias', enriched_data.get('alias', '')),
+                material.get('cas', enriched_data.get('cas_number', '')),
+                material.get('molecular_weight', enriched_data.get('molecular_weight', '')),
+                material.get('smiles', enriched_data.get('smiles', '')),
+                material.get('barcode', enriched_data.get('barcode', '')),
                 material.get('role', ''),
-                material.get('quantification_level', ''),
-                material.get('analytical_wavelength', ''),
-                material.get('rrf_to_is', '')
+                material.get('source', enriched_data.get('source', '')),
+                material.get('supplier', enriched_data.get('supplier', ''))
             ]
             ws_materials.append(row)
     

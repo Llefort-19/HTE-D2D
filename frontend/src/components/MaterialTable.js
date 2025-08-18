@@ -73,7 +73,7 @@ const MaterialTable = memo(({
       {personalInventoryStatus[`${material.name}_${material.alias || ''}_${material.cas || ''}`] === false && 
         material.source !== "inventory" && 
         material.source !== "solvent_database" && 
-        material.source !== "excel_upload" && 
+        material.source !== "inventory_match" && 
         material.source !== "kit_upload" && (
           <button
             className="btn btn-success"
@@ -90,7 +90,15 @@ const MaterialTable = memo(({
   );
 
   const renderSmilesCell = (material) => {
-    if (material.smiles && material.smiles.trim()) {
+    // Check for valid SMILES data - must be non-empty string and not just "nan", "null", etc.
+    const hasValidSmiles = material.smiles && 
+                          typeof material.smiles === 'string' && 
+                          material.smiles.trim() && 
+                          material.smiles.toLowerCase() !== 'nan' && 
+                          material.smiles.toLowerCase() !== 'null' &&
+                          material.smiles.toLowerCase() !== 'none';
+    
+    if (hasValidSmiles) {
       return (
         <button
           className="btn btn-success"

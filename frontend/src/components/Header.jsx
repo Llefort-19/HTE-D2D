@@ -125,16 +125,15 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
       if (materials && materials.length > 0) {
         const headers = [
           'Nr',
-          'Name',
-          'Alias',
-          'CAS',
-          'Molecular Weight',
-          'SMILES',
-          'Barcode',
-          'Role',
-          'Quantification Level',
-          'Analytical Wavelength',
-          'RRF to IS'
+          'chemical_name',
+          'alias',
+          'cas_number',
+          'molecular_weight',
+          'smiles',
+          'barcode',
+          'role',
+          'source',
+          'supplier'
         ];
 
         const data = [headers];
@@ -148,9 +147,8 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
             material.smiles || '',
             material.barcode || '',
             material.role || '',
-            material.quantification_level || '',
-            material.analytical_wavelength || '',
-            material.rrf_to_is || ''
+            material.source || '',
+            material.supplier || ''
           ]);
         });
 
@@ -160,16 +158,15 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         // Create empty sheet with headers
         const headers = [
           'Nr',
-          'Name',
-          'Alias',
-          'CAS',
-          'Molecular Weight',
-          'SMILES',
-          'Barcode',
-          'Role',
-          'Quantification Level',
-          'Analytical Wavelength',
-          'RRF to IS'
+          'chemical_name',
+          'alias',
+          'cas_number',
+          'molecular_weight',
+          'smiles',
+          'barcode',
+          'role',
+          'source',
+          'supplier'
         ];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         XLSX.utils.book_append_sheet(wb, ws, 'Materials');

@@ -46,8 +46,8 @@ const MaterialForm = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (!formData.name.trim()) {
-      alert("Material name is required");
+    if (!formData.alias.trim()) {
+      alert("Alias is required");
       return;
     }
 
@@ -81,7 +81,7 @@ const MaterialForm = ({
           <div className="modal-body">
             <div className="form-grid">
               <div className="form-group">
-                <label htmlFor="name">Chemical Name *</label>
+                <label htmlFor="name">Chemical Name</label>
                 <input
                   type="text"
                   id="name"
@@ -89,19 +89,19 @@ const MaterialForm = ({
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
                   placeholder="Enter chemical name"
-                  required
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="alias">Alias/Common Name</label>
+                <label htmlFor="alias">Alias *</label>
                 <input
                   type="text"
                   id="alias"
                   className="form-control"
                   value={formData.alias}
                   onChange={(e) => handleInputChange("alias", e.target.value)}
-                  placeholder="Enter alias or common name"
+                  placeholder="Enter alias"
+                  required
                 />
               </div>
 
@@ -143,14 +143,14 @@ const MaterialForm = ({
               </div>
 
               <div className="form-group">
-                <label htmlFor="barcode">Barcode/Lot Number</label>
+                <label htmlFor="barcode">Barcode</label>
                 <input
                   type="text"
                   id="barcode"
                   className="form-control"
                   value={formData.barcode}
                   onChange={(e) => handleInputChange("barcode", e.target.value)}
-                  placeholder="Enter barcode or lot number"
+                  placeholder="Enter barcode"
                 />
               </div>
 

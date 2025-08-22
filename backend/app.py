@@ -826,6 +826,14 @@ def upload_analytical_data():
         area_columns = [col for col in df.columns if col.startswith('Area_')]
         print(f"Found area columns: {area_columns}")
         
+        # Pre-process area columns: replace empty cells with 0
+        for col in area_columns:
+            # First, replace various empty representations with NaN
+            df[col] = df[col].replace(['', ' ', 'nan', 'NaN', 'None', None], pd.NA)
+            # Fill NaN values with 0
+            df[col] = df[col].fillna(0)
+            print(f"Pre-processed column {col}: replaced empty cells with 0")
+        
         # Check if area columns contain only numerical data
         invalid_area_columns = []
         for col in area_columns:
@@ -833,9 +841,14 @@ def upload_analytical_data():
                 # Convert to numeric, coercing errors to NaN
                 numeric_col = pd.to_numeric(df[col], errors='coerce')
                 # Check if there are any NaN values (indicating non-numeric data)
+                # After our pre-processing, NaN should only occur for truly non-numeric data
                 if numeric_col.isna().any():
                     invalid_area_columns.append(col)
                     print(f"Column {col} contains non-numeric data")
+                    # Show which values couldn't be converted
+                    nan_mask = numeric_col.isna()
+                    problematic_values = df.loc[nan_mask, col].unique()
+                    print(f"Problematic values in {col}: {problematic_values}")
             except Exception as e:
                 invalid_area_columns.append(col)
                 print(f"Error validating column {col}: {str(e)}")

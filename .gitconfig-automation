@@ -1,0 +1,26 @@
+# Git configuration for automation environments
+# Add this to any project to prevent pager issues
+
+[core]
+    pager = ""
+    autocrlf = false
+    filemode = false
+
+[init]
+    defaultBranch = main
+
+[push]
+    default = simple
+    autoSetupRemote = true
+
+[pull]
+    rebase = false
+
+# Disable interactive prompts
+[advice]
+    pushNonFastForward = false
+    statusHints = false
+    commitBeforeMerge = false
+    resolveConflict = false
+    implicitIdentity = false
+    detachedHead = false

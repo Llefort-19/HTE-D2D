@@ -41,6 +41,9 @@ function App() {
       // Clear localStorage for SDF data
       localStorage.removeItem("experimentSdfData");
       
+      // Clear session flag so next start is treated as fresh
+      sessionStorage.removeItem("experimentSessionActive");
+      
       // Force page reload to reset all component states
       window.location.reload();
     } catch (error) {

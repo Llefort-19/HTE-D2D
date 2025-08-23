@@ -44,8 +44,20 @@ const ExperimentContext = () => {
 
   useEffect(() => {
     loadContext();
-    loadSdfData();
     loadCurrentMaterials();
+    
+    // Check if this is a fresh app start (not a page refresh)
+    // If there's no session flag, clear any existing SDF data for a clean start
+    const hasActiveSession = sessionStorage.getItem('experimentSessionActive');
+    if (!hasActiveSession) {
+      // Clear any persisted SDF data for a clean start
+      localStorage.removeItem('experimentSdfData');
+      // Set session flag to indicate an active session
+      sessionStorage.setItem('experimentSessionActive', 'true');
+    } else {
+      // Load existing SDF data if session is active
+      loadSdfData();
+    }
   }, []);
 
   const loadCurrentMaterials = async () => {
@@ -66,6 +78,21 @@ const ExperimentContext = () => {
       console.error("Error loading current materials:", error);
     }
   };
+
+  // Add a function to refresh materials state when needed
+  const refreshMaterialsState = () => {
+    loadCurrentMaterials();
+  };
+
+  // Listen for custom events that indicate materials have been cleared
+  useEffect(() => {
+    const handleMaterialsCleared = () => {
+      setAddedMaterials(new Set());
+    };
+
+    window.addEventListener('materialsCleared', handleMaterialsCleared);
+    return () => window.removeEventListener('materialsCleared', handleMaterialsCleared);
+  }, []);
 
   const loadSdfData = () => {
     try {
@@ -301,7 +328,7 @@ const ExperimentContext = () => {
                 className="form-control"
                 value={context.eln}
                 onChange={handleChange}
-                placeholder="8-character initials-book format"
+                placeholder="Enter your laboratory notebook reference"
               />
             </div>
           </div>

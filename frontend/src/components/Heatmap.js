@@ -862,7 +862,16 @@ const Heatmap = () => {
                                        if (heatmap.formulaBuilder?.asPercentage) {
                                          displayValue = `${Math.round(value * 100)}%`;
                                        } else {
-                                         displayValue = value.toFixed(2);
+                                         // Format with 4 significant digits
+                                         const num = parseFloat(value);
+                                         if (num === 0) {
+                                           displayValue = '0';
+                                         } else if (Math.abs(num) < 1e-10) {
+                                           displayValue = '0';
+                                         } else {
+                                           const formatted = num.toPrecision(4);
+                                           displayValue = parseFloat(formatted).toString();
+                                         }
                                        }
                                      }
                                      

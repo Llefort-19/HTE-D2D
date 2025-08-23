@@ -61,9 +61,29 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
       // Add Summary Sheet
       await exportSummarySheet(wb, XLSX);
 
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `HTE_Experiment_${timestamp}.xlsx`;
+      // Generate filename based on ELN number or timestamp
+      let filename;
+      try {
+        // Try to get ELN number from context
+        const contextResponse = await axios.get('/api/experiment/context');
+        const context = contextResponse.data;
+        const elnNumber = context.eln;
+        
+        if (elnNumber && elnNumber.trim() !== '') {
+          // Use ELN number + date (YYYY-MM-DD format)
+          const dateOnly = new Date().toISOString().split('T')[0]; // Gets YYYY-MM-DD
+          filename = `${elnNumber.trim()}_${dateOnly}.xlsx`;
+        } else {
+          // Fallback to original timestamp format
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+          filename = `HTE_Experiment_${timestamp}.xlsx`;
+        }
+      } catch (error) {
+        console.warn('Could not fetch ELN number, using timestamp:', error);
+        // Fallback to original timestamp format
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        filename = `HTE_Experiment_${timestamp}.xlsx`;
+      }
 
       // Save the workbook
       XLSX.writeFile(wb, filename);
@@ -176,6 +196,11 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
     }
   };
 
+  // Helper function to create a unique identifier for materials (same as in Procedure.js)
+  const getMaterialId = (material) => {
+    return `${material.name || ''}_${material.alias || ''}_${material.cas || ''}`;
+  };
+
   const exportProcedure = async (wb, XLSX) => {
     try {
       const [procedureRes, contextRes] = await Promise.all([
@@ -222,25 +247,32 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         }
       }
 
-      // Collect all unique materials across all wells and assign consistent compound numbers
-      const allMaterials = new Set();
+      // Collect all unique materials across all wells using unique identifiers
+      const allMaterials = new Map(); // Use Map to store both ID and material data
       if (procedure && procedure.length > 0) {
         procedure.forEach(wellData => {
           if (wellData.materials) {
             wellData.materials.forEach(material => {
-              if (material.name) {
-                allMaterials.add(material.name);
+              const materialId = getMaterialId(material);
+              if (materialId && !allMaterials.has(materialId)) {
+                allMaterials.set(materialId, material);
               }
             });
           }
         });
       }
 
-      // Convert to array and sort for consistent ordering
-      const sortedMaterials = Array.from(allMaterials).sort();
+      // Convert to array and sort for consistent ordering (sort by alias or name for display)
+      const sortedMaterials = Array.from(allMaterials.entries())
+        .sort(([idA, materialA], [idB, materialB]) => {
+          const nameA = materialA.alias || materialA.name || '';
+          const nameB = materialB.alias || materialB.name || '';
+          return nameA.localeCompare(nameB);
+        });
+      
       const materialToCompoundMap = {};
-      sortedMaterials.forEach((materialName, index) => {
-        materialToCompoundMap[materialName] = index + 1;
+      sortedMaterials.forEach(([materialId, material], index) => {
+        materialToCompoundMap[materialId] = index + 1;
       });
 
       // Create headers for Design sheet
@@ -267,10 +299,11 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         if (wellData && wellData.materials && wellData.materials.length > 0) {
           // Fill in compound names and amounts based on the consistent mapping
           wellData.materials.forEach(material => {
-            const compoundNumber = materialToCompoundMap[material.name];
+            const materialId = getMaterialId(material);
+            const compoundNumber = materialToCompoundMap[materialId];
             if (compoundNumber) {
               const compoundIndex = (compoundNumber - 1) * 2 + 2; // +2 for Well and ID columns
-              row[compoundIndex] = material.name || '';
+              row[compoundIndex] = material.alias || material.name || '';
               row[compoundIndex + 1] = material.amount || '';
             }
           });

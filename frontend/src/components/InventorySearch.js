@@ -32,6 +32,19 @@ const InventorySearch = ({
     }
   }, [visible, onClose]);
 
+  // Reset search state when materials list changes or modal is opened
+  useEffect(() => {
+    if (visible) {
+      // Clear selected items when modal opens to ensure fresh state
+      setSelectedInventoryItems([]);
+      setShowSelectedInventory(false);
+      // Also clear search results and query to start fresh
+      setSearchResults([]);
+      setSearchQuery("");
+      setShowSearch(false);
+    }
+  }, [materials, visible]);
+
   const searchInventory = async (query) => {
     if (query.length < 2) {
       setSearchResults([]);
@@ -86,16 +99,21 @@ const InventorySearch = ({
 
   // Helper function to check if material already exists in the list
   const isMaterialInList = (chemical) => {
-    return materials.some(
-      (material) =>
-        material.name === (chemical.chemical_name || chemical.name) ||
-        (material.cas &&
-          chemical.cas_number &&
-          material.cas === chemical.cas_number) ||
-        (material.cas &&
-          chemical.cas &&
-          material.cas === chemical.cas),
-    );
+    return materials.some(existingMaterial => {
+      // Check if any of the identifying fields match (name, alias, or CAS)
+      // Only check if both values exist and are not empty
+      const chemicalName = chemical.chemical_name || chemical.name;
+      const chemicalCas = chemical.cas_number || chemical.cas;
+      
+      const nameMatch = existingMaterial.name && chemicalName && 
+                       existingMaterial.name.toLowerCase().trim() === chemicalName.toLowerCase().trim();
+      const aliasMatch = existingMaterial.alias && chemicalName && 
+                        existingMaterial.alias.toLowerCase().trim() === chemicalName.toLowerCase().trim();
+      const casMatch = existingMaterial.cas && chemicalCas && 
+                      existingMaterial.cas.toLowerCase().trim() === chemicalCas.toLowerCase().trim();
+      
+      return nameMatch || aliasMatch || casMatch;
+    });
   };
 
   // Toggle selection function like the original
@@ -162,6 +180,8 @@ const InventorySearch = ({
   };
 
   const addFromInventory = async (chemical) => {
+    console.log("Adding individual material from inventory:", chemical);
+    
     const material = {
       name: chemical.chemical_name || chemical.name,
       alias: chemical.alias || "",
@@ -174,6 +194,10 @@ const InventorySearch = ({
     };
 
     try {
+      // Clear any selected items to prevent accidental batch additions
+      setSelectedInventoryItems([]);
+      setShowSelectedInventory(false);
+      
       onAddMaterial(material);
       if (showSuccess) {
         showSuccess(`${material.name} added from inventory!`);
@@ -187,7 +211,17 @@ const InventorySearch = ({
   };
 
   const addSelectedInventoryItemsToMaterials = async () => {
+    // Safety check - only proceed if there are actually selected items
+    if (selectedInventoryItems.length === 0) {
+      if (showError) {
+        showError("No materials selected for batch addition");
+      }
+      return;
+    }
+
     try {
+      console.log(`Adding ${selectedInventoryItems.length} selected materials:`, selectedInventoryItems);
+      
       // Convert all selected items to material format
       const materialsToAdd = selectedInventoryItems.map(item => ({
         name: item.chemical_name || item.name,
@@ -356,13 +390,14 @@ const InventorySearch = ({
                             borderBottom: index < searchResults.length - 1 ? "1px solid var(--color-border-light)" : "none",
                             backgroundColor: "transparent",
                             borderLeft: isSelected ? "4px solid var(--color-info)" : "4px solid transparent",
-                            cursor: isExisting ? "not-allowed" : "pointer",
                             opacity: isExisting ? 0.6 : 1
                           }}
-                          onClick={isExisting ? undefined : () => toggleInventorySelection(chemical)}
                         >
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <div style={{ flex: "1", fontSize: "13px" }}>
+                            <div 
+                              style={{ flex: "1", fontSize: "13px", cursor: isExisting ? "not-allowed" : "pointer" }}
+                              onClick={isExisting ? undefined : () => toggleInventorySelection(chemical)}
+                            >
                               <span style={{ fontWeight: "bold", color: "var(--color-heading)" }}>
                                 {chemical.alias || chemical.chemical_name || chemical.name}
                               </span>
@@ -378,6 +413,32 @@ const InventorySearch = ({
                                   ✓ Already added
                                 </span>
                               )}
+                            </div>
+                            <div style={{ display: "flex", gap: "8px", marginLeft: "12px" }}>
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => addFromInventory(chemical)}
+                                disabled={isExisting}
+                                style={{ 
+                                  fontSize: "11px", 
+                                  padding: "4px 8px",
+                                  opacity: isExisting ? 0.5 : 1
+                                }}
+                              >
+                                Add
+                              </button>
+                              <button
+                                className={`btn ${isSelected ? "btn-info" : "btn-outline-secondary"}`}
+                                onClick={() => toggleInventorySelection(chemical)}
+                                disabled={isExisting}
+                                style={{ 
+                                  fontSize: "11px", 
+                                  padding: "4px 8px",
+                                  opacity: isExisting ? 0.5 : 1
+                                }}
+                              >
+                                {isSelected ? "✓" : "Select"}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -409,12 +470,17 @@ const InventorySearch = ({
         </div>
         <div className="modal-footer">
           {selectedInventoryItems.length > 0 && (
-            <button
-              className="btn btn-success"
-              onClick={addSelectedInventoryItemsToMaterials}
-            >
-              Add Selected to Experiment ({selectedInventoryItems.length})
-            </button>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
+                {selectedInventoryItems.length} chemical{selectedInventoryItems.length !== 1 ? 's' : ''} selected
+              </span>
+              <button
+                className="btn btn-success"
+                onClick={addSelectedInventoryItemsToMaterials}
+              >
+                Add All Selected to Experiment
+              </button>
+            </div>
           )}
         </div>
       </div>

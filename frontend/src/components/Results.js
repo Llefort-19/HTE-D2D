@@ -2,6 +2,29 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useToast } from "./ToastContext";
 
+// Utility function to format numbers with 4 significant digits
+const formatToSignificantDigits = (value, significantDigits = 4) => {
+  if (value === null || value === undefined || value === '' || isNaN(value)) {
+    return value;
+  }
+  
+  const num = parseFloat(value);
+  if (num === 0) {
+    return '0';
+  }
+  
+  // Handle very small numbers
+  if (Math.abs(num) < 1e-10) {
+    return '0';
+  }
+  
+  // Use toPrecision for significant digits, then remove unnecessary trailing zeros
+  const formatted = num.toPrecision(significantDigits);
+  
+  // Remove trailing zeros and unnecessary decimal point
+  return parseFloat(formatted).toString();
+};
+
 const Results = () => {
   const [analyticalData, setAnalyticalData] = useState(null);
 
@@ -33,69 +56,14 @@ const Results = () => {
     }
   };
 
-  const exportExperiment = async () => {
-    try {
-      const response = await axios.post(
-        "/api/experiment/export",
-        {},
-        {
-          responseType: "blob",
-        },
-      );
 
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute(
-        "download",
-        `HTE_experiment_${new Date().toISOString().split("T")[0]}.xlsx`,
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
 
-      showSuccess("Experiment exported successfully!");
-    } catch (error) {
-      showError("Error exporting experiment: " + error.message);
-    }
-  };
 
-  const resetExperiment = async () => {
-    if (
-      window.confirm(
-        "Are you sure you want to reset the entire experiment? This will clear all data.",
-      )
-    ) {
-      try {
-        await axios.post("/api/experiment/reset");
-        setAnalyticalData(null);
-        showSuccess("Experiment reset successfully!");
-      } catch (error) {
-        showError("Error resetting experiment: " + error.message);
-      }
-    }
-  };
 
   return (
     <div className="card">
-      <h2>Results</h2>
-
-      <div style={{ marginBottom: "20px" }}>
-        <button
-          className="btn btn-success"
-          onClick={exportExperiment}
-        >
-          Export to Excel
-        </button>
-        <button className="btn btn-secondary" onClick={resetExperiment}>
-          Reset Experiment
-        </button>
-      </div>
-
       {/* Analytical Results Table */}
-      <div className="card" style={{ marginTop: "20px" }}>
+      <div className="card">
         <h3>Analytical Results</h3>
         
         {analyticalData ? (
@@ -118,9 +86,16 @@ const Results = () => {
                 <tbody>
                   {analyticalData.data.map((row, rowIndex) => (
                     <tr key={rowIndex}>
-                      {analyticalData.columns.map((column, colIndex) => (
-                        <td key={colIndex}>{row[column]}</td>
-                      ))}
+                      {analyticalData.columns.map((column, colIndex) => {
+                        const value = row[column];
+                        // Format Area columns with 4 significant digits
+                        const isAreaColumn = column.startsWith('Area_');
+                        const displayValue = isAreaColumn ? formatToSignificantDigits(value) : value;
+                        
+                        return (
+                          <td key={colIndex}>{displayValue}</td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

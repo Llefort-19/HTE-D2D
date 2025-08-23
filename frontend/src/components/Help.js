@@ -87,13 +87,7 @@ const Help = ({ tabId, visible, onClose }) => {
                 <li>Role assignments are saved and persist across tab switches</li>
               </ul>
               
-              <h4>User Experience:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6" }}>
-                <li>Automatic duplicate checking when adding to materials</li>
-                <li>Toast notifications for all actions</li>
-                <li>Consistent molecular structure rendering</li>
-                <li>Streamlined file upload process</li>
-              </ul>
+
             </div>
           )
         };

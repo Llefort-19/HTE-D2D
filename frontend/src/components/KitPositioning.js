@@ -34,36 +34,53 @@ const KitPositioning = ({
   const getKitType = (kitRows, kitCols) => {
     const totalWells = kitRows * kitCols;
     
+    console.log(`Kit Type Detection: ${kitRows} rows × ${kitCols} columns = ${totalWells} wells`);
+    
     if (totalWells === 24 && kitRows === 4 && kitCols === 6) {
+      console.log("Detected kit type: 4x6_24well");
       return "4x6_24well";
     } else if (totalWells === 24 && kitRows === 2 && kitCols === 12) {
+      console.log("Detected kit type: 2x12_24well");
       return "2x12_24well";
     } else if (totalWells === 48 && kitRows === 6 && kitCols === 8) {
+      console.log("Detected kit type: 6x8_48well");
       return "6x8_48well";
     } else if (totalWells === 48 && kitRows === 4 && kitCols === 12) {
+      console.log("Detected kit type: 4x12_48well");
       return "4x12_48well";
     } else if (totalWells === 96 && kitRows === 8 && kitCols === 12) {
+      console.log("Detected kit type: 8x12_96well");
       return "8x12_96well";
     }
     
+    console.warn(`Unknown kit type: ${kitRows}×${kitCols} (${totalWells} wells)`);
     return "unknown";
   };
 
   const getValidPlatesForKit = (kitType) => {
+    let validPlates;
     switch (kitType) {
       case "4x6_24well":
-        return ["24", "48", "96"]; // Can be positioned on all plates
+        validPlates = ["24", "48", "96"]; // Can be positioned on all plates
+        break;
       case "2x12_24well":
-        return ["96"]; // Only on 96-well plates
+        validPlates = ["96"]; // Only on 96-well plates (needs 12 columns)
+        break;
       case "6x8_48well":
-        return ["48"]; // Only on 48-well plates
+        validPlates = ["48"]; // Only on 48-well plates
+        break;
       case "4x12_48well":
-        return ["96"]; // Only on 96-well plates
+        validPlates = ["96"]; // Only on 96-well plates
+        break;
       case "8x12_96well":
-        return ["96"]; // Only on 96-well plates
+        validPlates = ["96"]; // Only on 96-well plates
+        break;
       default:
-        return [];
+        validPlates = [];
     }
+    
+    console.log(`Valid plates for kit type '${kitType}':`, validPlates);
+    return validPlates;
   };
 
   const getPositionOptions = (kitType, plateType) => {

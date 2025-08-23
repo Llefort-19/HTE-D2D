@@ -662,6 +662,7 @@ def experiment_procedure_settings():
             'uplcNumber': '',
             'method': '',
             'duration': '',
+            'wavelength': '',
             'remarks': ''
         }
     }))

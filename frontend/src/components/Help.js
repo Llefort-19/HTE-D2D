@@ -100,7 +100,7 @@ const Help = ({ tabId, visible, onClose }) => {
               <ul style={{ paddingLeft: "20px", lineHeight: "1.6" }}>
                 <li><strong>Plate Layout:</strong> Design your 96-well plate experiment layout</li>
                 <li><strong>Material Assignment:</strong> Assign materials to specific wells</li>
-                <li><strong>Concentration Setup:</strong> Set concentrations for each material</li>
+                <li><strong>Amount Setup:</strong> Set amounts for each material</li>
                 <li><strong>Well Management:</strong> Add, remove, or modify wells as needed</li>
                 <li><strong>Visual Design:</strong> See your plate layout in a visual format</li>
               </ul>
@@ -112,13 +112,19 @@ const Help = ({ tabId, visible, onClose }) => {
           title: 'Procedure Settings Help',
           content: (
             <div>
-              <h4>Configuring Your Procedure:</h4>
+              <h4>Reaction Conditions:</h4>
               <ul style={{ paddingLeft: "20px", lineHeight: "1.6" }}>
-                <li><strong>Temperature Control:</strong> Set reaction temperatures and conditions</li>
-                <li><strong>Time Settings:</strong> Configure reaction times and intervals</li>
-                <li><strong>Stirring Parameters:</strong> Set stirring speeds and durations</li>
-                <li><strong>Atmosphere Control:</strong> Configure gas atmosphere settings</li>
-                <li><strong>Safety Settings:</strong> Set up safety parameters and limits</li>
+                <li><strong>Temperature:</strong> Enter reaction temperature</li>
+                <li><strong>Time:</strong> Enter reaction time</li>
+                <li><strong>Pressure:</strong> For reaction under pressure</li>
+                <li><strong>Wavelength:</strong> For photochemical reactions</li>
+              </ul>
+              <h4>Analytical Details:</h4>
+              <ul style={{ paddingLeft: "20px", lineHeight: "1.6" }}>
+                <li><strong>UPLC:</strong> Enter UPLC number</li>
+                <li><strong>Method:</strong> Select method from dropdown menu</li>
+                <li><strong>Duration:</strong> Enter duration of the analysis</li>
+                <li><strong>Wavelength:</strong> Enter wavelength of the analysis</li>
               </ul>
             </div>
           )
@@ -151,14 +157,6 @@ const Help = ({ tabId, visible, onClose }) => {
                 <li>2. Fill in chromatogram areas in the exported file</li>
                 <li>3. Upload completed results for processing</li>
                 <li>4. Review analysis and proceed to Results tab</li>
-              </ul>
-              
-              <h4>Best Practices:</h4>
-              <ul style={{ paddingLeft: "20px", lineHeight: "1.6" }}>
-                <li>Use consistent compound names across all experiment sections</li>
-                <li>Ensure ELN number is set in Context tab before generating templates</li>
-                <li>Document chromatographic conditions and parameters</li>
-                <li>Use appropriate units for area values (e.g., mAU·s)</li>
               </ul>
             </div>
           )

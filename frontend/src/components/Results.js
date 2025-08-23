@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useToast } from "./ToastContext";
 
-// Utility function to format numbers with 4 significant digits
+// Utility function to format numbers with 4 significant digits for numbers ≤9999,
+// and preserve all digits for numbers >9999
 const formatToSignificantDigits = (value, significantDigits = 4) => {
   if (value === null || value === undefined || value === '' || isNaN(value)) {
     return value;
@@ -18,7 +19,14 @@ const formatToSignificantDigits = (value, significantDigits = 4) => {
     return '0';
   }
   
-  // Use toPrecision for significant digits, then remove unnecessary trailing zeros
+  const absValue = Math.abs(num);
+  
+  // For numbers > 9999, preserve all digits (no rounding/truncation)
+  if (absValue > 9999) {
+    return num.toString();
+  }
+  
+  // For numbers ≤ 9999, use 4 significant digits
   const formatted = num.toPrecision(significantDigits);
   
   // Remove trailing zeros and unnecessary decimal point

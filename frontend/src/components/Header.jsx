@@ -342,6 +342,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         ['UPLC #', procedureSettings.analyticalDetails?.uplcNumber || '', ''],
         ['Method', procedureSettings.analyticalDetails?.method || '', ''],
         ['Duration', procedureSettings.analyticalDetails?.duration || '', 'min'],
+        ['Wavelength', procedureSettings.analyticalDetails?.wavelength || '', 'nm'],
         [''],
         ['Remarks'],
         [procedureSettings.analyticalDetails?.remarks || '']

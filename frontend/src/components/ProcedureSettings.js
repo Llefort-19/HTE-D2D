@@ -14,6 +14,7 @@ const ProcedureSettings = () => {
     uplcNumber: "",
     method: "",
     duration: "",
+    wavelength: "",
     remarks: ""
   });
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -37,6 +38,20 @@ const ProcedureSettings = () => {
     };
   }, []);
 
+  // Refresh data when component becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadProcedureSettings();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   const loadProcedureSettings = async () => {
     try {
       const response = await axios.get("/api/experiment/procedure-settings");
@@ -52,6 +67,7 @@ const ProcedureSettings = () => {
         uplcNumber: "",
         method: "",
         duration: "",
+        wavelength: "",
         remarks: ""
       });
     } catch (error) {
@@ -242,6 +258,25 @@ const ProcedureSettings = () => {
                   </td>
                   <td>min</td>
                 </tr>
+                <tr>
+                  <td>Wavelength</td>
+                  <td>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={analyticalDetails.wavelength}
+                      onChange={(e) => {
+                        setAnalyticalDetails(prev => ({
+                          ...prev,
+                          wavelength: e.target.value
+                        }));
+                        saveProcedureSettings();
+                      }}
+                      placeholder="Enter wavelength"
+                    />
+                  </td>
+                  <td>nm</td>
+                </tr>
               </tbody>
             </table>
             <div className="remarks-section">
@@ -297,6 +332,7 @@ const ProcedureSettings = () => {
                   <li><strong>UPLC #:</strong> Enter the UPLC instrument number</li>
                   <li><strong>Method:</strong> Select the analytical method from the dropdown</li>
                   <li><strong>Duration:</strong> Enter the method duration in minutes</li>
+                  <li><strong>Wavelength:</strong> Enter the analytical wavelength in nanometers</li>
                   <li><strong>Remarks:</strong> Add any additional notes about analytical details</li>
                 </ul>
                 <li>

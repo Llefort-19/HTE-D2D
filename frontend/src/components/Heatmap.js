@@ -489,6 +489,25 @@ const Heatmap = () => {
     }));
   };
 
+  // Helper function to format numbers according to the requirement:
+  // - 3 significant digits for numbers ≤999
+  // - All digits for numbers >999
+  const formatHeatmapNumber = (value) => {
+    if (value === 0) return '0';
+    if (Math.abs(value) < 1e-10) return '0';
+    
+    const absValue = Math.abs(value);
+    
+    if (absValue > 999) {
+      // For numbers > 999, show all digits (but limit to reasonable precision)
+      return value.toString();
+    } else {
+      // For numbers ≤ 999, show 3 significant digits
+      const formatted = value.toPrecision(3);
+      return parseFloat(formatted).toString();
+    }
+  };
+
   const getCompoundName = (areaColumn) => {
     if (!analyticalData || !analyticalData.columns) return areaColumn;
     
@@ -862,16 +881,8 @@ const Heatmap = () => {
                                        if (heatmap.formulaBuilder?.asPercentage) {
                                          displayValue = `${Math.round(value * 100)}%`;
                                        } else {
-                                         // Format with 4 significant digits
-                                         const num = parseFloat(value);
-                                         if (num === 0) {
-                                           displayValue = '0';
-                                         } else if (Math.abs(num) < 1e-10) {
-                                           displayValue = '0';
-                                         } else {
-                                           const formatted = num.toPrecision(4);
-                                           displayValue = parseFloat(formatted).toString();
-                                         }
+                                         // Format with 3 significant digits for numbers ≤999, all digits for >999
+                                         displayValue = formatHeatmapNumber(value);
                                        }
                                      }
                                      
@@ -1060,7 +1071,7 @@ const Heatmap = () => {
                 <li><strong>Light Colors:</strong> Low values</li>
                 <li><strong>Dark Colors:</strong> High values</li>
                                  <li><strong>Color Schemes:</strong> Choose from Blue, Blue-Yellow-Red, Green-Blue, or Purple-Green-Yellow</li>
-                <li><strong>Value Display:</strong> Percentages show as whole numbers (e.g., "85%"), other values show 2 decimal places</li>
+                <li><strong>Value Display:</strong> Percentages show as whole numbers (e.g., "85%"), other values show 3 significant digits for numbers ≤999 or all digits for numbers &gt;999</li>
               </ul>
             </div>
             <div className="modal-footer">

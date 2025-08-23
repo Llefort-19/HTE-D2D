@@ -215,9 +215,46 @@ const Procedure = () => {
     }
   };
 
+  // Helper function to create a unique identifier for materials
+  const getMaterialId = (material) => {
+    // Use a combination of name, alias, and CAS to create a unique identifier
+    // Handle both null and undefined values explicitly
+    const name = (material.name || '').trim();
+    const alias = (material.alias || '').trim();
+    const cas = (material.cas || '').trim();
+    
+    // Create ID with consistent formatting
+    const id = `${name}_${alias}_${cas}`;
+    return id;
+  };
+
+  // Helper function to format numbers with 2 relevant decimal places
+  const formatAmount = (amount) => {
+    const num = parseFloat(amount);
+    if (isNaN(num)) return amount;
+    
+    // Handle different ranges to show 2 relevant decimal places
+    if (num >= 10) {
+      // For numbers >= 10, show no decimals if whole, otherwise 1 decimal
+      return num % 1 === 0 ? num.toString() : num.toFixed(1);
+    } else if (num >= 1) {
+      // For numbers 1-10, show 1 decimal place
+      return num.toFixed(1);
+    } else if (num >= 0.1) {
+      // For numbers 0.1-1, show 2 decimal places
+      return num.toFixed(2);
+    } else {
+      // For numbers < 0.1, show 3 decimal places to ensure 2 relevant digits
+      return num.toFixed(3);
+    }
+  };
+
   const handleMaterialClick = (material) => {
+    const clickedId = getMaterialId(material);
+    const selectedId = selectedMaterial ? getMaterialId(selectedMaterial) : null;
+    
     // If clicking the same material, deselect it
-    if (selectedMaterial && selectedMaterial.name === material.name) {
+    if (selectedMaterial && selectedId === clickedId) {
       setSelectedMaterial(null);
       setAmount("");
     } else {
@@ -385,9 +422,11 @@ const Procedure = () => {
   const isSelectedMaterialInSelectedWells = () => {
     if (!selectedMaterial || selectedWells.length === 0) return false;
     
+    const selectedId = getMaterialId(selectedMaterial);
+    
     return selectedWells.some((wellId) => {
       const wellData = getWellData(wellId);
-      return wellData.materials.some((m) => m.name === selectedMaterial.name);
+      return wellData.materials.some((m) => getMaterialId(m) === selectedId);
     });
   };
 
@@ -404,12 +443,13 @@ const Procedure = () => {
       );
       if (existingIndex >= 0) {
         const wellData = updatedProcedure[existingIndex];
+        const selectedId = getMaterialId(selectedMaterial);
         const materialExists = wellData.materials.some(
-          (m) => m.name === selectedMaterial.name,
+          (m) => getMaterialId(m) === selectedId,
         );
         if (materialExists) {
           const updatedMaterials = wellData.materials.filter(
-            (m) => m.name !== selectedMaterial.name,
+            (m) => getMaterialId(m) !== selectedId,
           );
           updatedProcedure[existingIndex] = {
             ...wellData,
@@ -471,8 +511,9 @@ const Procedure = () => {
     if (!selectedMaterial) return null;
     
     const wellData = getWellData(wellId);
+    const selectedId = getMaterialId(selectedMaterial);
     const selectedMaterialInWell = wellData.materials.find(
-      (m) => m.name === selectedMaterial.name,
+      (m) => getMaterialId(m) === selectedId,
     );
 
     if (!selectedMaterialInWell) return null;
@@ -480,7 +521,7 @@ const Procedure = () => {
     // Get all amounts for this material across all wells
     const allAmounts = procedure
       .flatMap(wellData => wellData.materials)
-      .filter(m => m.name === selectedMaterial.name)
+      .filter(m => getMaterialId(m) === selectedId)
       .map(m => m.amount);
 
     if (allAmounts.length === 0) return null;
@@ -506,7 +547,7 @@ const Procedure = () => {
     const isSelected = selectedWells.includes(wellId);
     const hasContent = wellData.materials.length > 0;
     const containsSelectedMaterial = selectedMaterial && 
-      wellData.materials.some((m) => m.name === selectedMaterial.name);
+      wellData.materials.some((m) => getMaterialId(m) === getMaterialId(selectedMaterial));
 
     if (isSelected && containsSelectedMaterial) {
       // Well is both selected and contains the highlighted material
@@ -533,8 +574,9 @@ const Procedure = () => {
     }
 
     const wellData = getWellData(wellId);
+    const selectedId = getMaterialId(selectedMaterial);
     const selectedMaterialInWell = wellData.materials.find(
-      (m) => m.name === selectedMaterial.name,
+      (m) => getMaterialId(m) === selectedId,
     );
 
     if (!selectedMaterialInWell) {
@@ -544,7 +586,7 @@ const Procedure = () => {
     return (
       <div className="well-content">
         <div className="well-material-amount" style={{ fontSize: "10px", fontWeight: "bold" }}>
-          {selectedMaterialInWell.amount}
+          {formatAmount(selectedMaterialInWell.amount)}
         </div>
       </div>
     );
@@ -553,28 +595,34 @@ const Procedure = () => {
   const calculateMaterialTotals = () => {
     const totals = {};
 
-    // Initialize totals for all materials
+    // Initialize totals for all materials using unique identifiers
     materials.forEach((material) => {
-      totals[material.name] = {
+      const materialId = getMaterialId(material);
+      totals[materialId] = {
         umol: 0,
         μL: 0,
         mg: 0,
         hasMolecularWeight: !!material.molecular_weight,
         unit: "μmol", // default unit
+        materialData: material, // Store reference to original material data
       };
     });
 
     // Calculate totals from procedure data
     procedure.forEach((wellData) => {
       wellData.materials.forEach((material) => {
-        if (totals[material.name] !== undefined) {
+        const materialId = getMaterialId(material);
+        
+        if (totals[materialId] !== undefined) {
           const unit = material.unit || "μmol";
+          const amount = parseFloat(material.amount) || 0;
+          
           if (unit === "μL") {
-            totals[material.name].μL += material.amount || 0;
-            totals[material.name].unit = "μL";
+            totals[materialId].μL += amount;
+            totals[materialId].unit = "μL";
           } else {
-            totals[material.name].umol += material.amount || 0;
-            totals[material.name].unit = "μmol";
+            totals[materialId].umol += amount;
+            totals[materialId].unit = "μmol";
           }
         }
       });
@@ -582,16 +630,20 @@ const Procedure = () => {
 
     // Calculate mg amounts using current molecular weights from materials list
     materials.forEach((material) => {
-      if (totals[material.name]) {
+      const materialId = getMaterialId(material);
+      if (totals[materialId]) {
         // Calculate mg: (molecular_weight * amount_umol) / 100
-        const mg = ((material.molecular_weight || 0) * totals[material.name].umol) / 100;
-        totals[material.name].mg = mg;
-        totals[material.name].hasMolecularWeight = !!material.molecular_weight;
+        const mg = ((material.molecular_weight || 0) * totals[materialId].umol) / 100;
+        totals[materialId].mg = mg;
+        totals[materialId].hasMolecularWeight = !!material.molecular_weight;
       }
     });
 
     return totals;
   };
+
+  // Calculate material totals once outside of render
+  const materialTotals = calculateMaterialTotals();
 
   return (
     <div className="card">
@@ -611,36 +663,43 @@ const Procedure = () => {
               </thead>
               <tbody>
                 {materials.map((material, index) => {
-                  const materialTotals = calculateMaterialTotals();
-                  const totalData = materialTotals[material.name] || {
+                  const materialId = getMaterialId(material);
+                  const totalData = materialTotals[materialId] || {
                     umol: 0,
+                    μL: 0,
                     mg: 0,
+                    hasMolecularWeight: false,
+                    unit: "μmol"
                   };
+                  
+                  // Check if this material should be highlighted using unique identifier
+                  const isSelected = selectedMaterial && getMaterialId(selectedMaterial) === getMaterialId(material);
+                  
                   return (
                     <tr
                       key={index}
                       className={
-                        selectedMaterial?.name === material.name
+                        isSelected
                           ? "selected-row"
                           : ""
                       }
                       onClick={() => handleMaterialClick(material)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td>{material.alias}</td>
+                      <td>{material.alias || material.name}</td>
                       <td>{material.cas}</td>
                       <td className="total-amount">
                         {(totalData.umol > 0 || totalData.μL > 0) ? (
                           <div className="amount-display">
                             <div className="amount-umol">
                               {totalData.unit === "μL" 
-                                ? `${totalData.μL.toFixed(1)} μL`
-                                : `${totalData.umol.toFixed(1)} μmol`
+                                ? `${formatAmount(totalData.μL)} μL`
+                                : `${formatAmount(totalData.umol)} μmol`
                               }
                             </div>
                             <div className="amount-mg">
                               {totalData.hasMolecularWeight && totalData.unit === "μmol"
-                                ? `${totalData.mg.toFixed(1)} mg`
+                                ? `${formatAmount(totalData.mg)} mg`
                                 : "--"}
                             </div>
                           </div>

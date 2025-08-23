@@ -1195,9 +1195,12 @@ def analyze_kit():
                 'source': 'kit_upload'
             }
             
-            # Only add if name is not empty
-            if material['name'] and material['name'] != 'nan':
+            # Only add if name or alias is not empty (allow materials with just alias)
+            if (material['name'] and material['name'] != 'nan') or (material['alias'] and material['alias'] != 'nan'):
                 materials.append(material)
+                print(f"Added material: name='{material['name']}', alias='{material['alias']}'")
+            else:
+                print(f"Skipped material: name='{material['name']}', alias='{material['alias']}' (both empty)")
         
         if not materials:
             return jsonify({'error': 'No valid materials found in the Materials sheet'}), 400
@@ -1231,12 +1234,23 @@ def analyze_kit():
                         # Find the material in our materials list
                         material = next((m for m in materials if m['name'] == compound_name or m['alias'] == compound_name), None)
                         if material:
+                            # Include all material fields to ensure proper matching with materials list
                             well_materials.append({
                                 'name': material['name'],
                                 'alias': material['alias'],
+                                'cas': material['cas'],
+                                'smiles': material['smiles'],
+                                'molecular_weight': material['molecular_weight'],
+                                'barcode': material['barcode'],
+                                'role': material['role'],
                                 'amount': compound_amount,
                                 'unit': 'μmol'  # Default unit
                             })
+                            if well in ['A1', 'A12', 'B1', 'B12']:  # Debug corner wells
+                                print(f"DEBUG: Well {well}: Added '{compound_name}' -> material '{material['alias']}'")
+                        else:
+                            if well in ['A1', 'A12', 'B1', 'B12']:  # Debug corner wells
+                                print(f"DEBUG: Well {well}: Compound '{compound_name}' NOT FOUND in materials")
                 
                 col_index += 2  # Move to next compound pair
             
@@ -1261,22 +1275,46 @@ def analyze_kit():
                 rows.add(row_letter)
                 cols.add(col_number)
         
-        # Convert row letters to numbers for calculation
-        row_numbers = [ord(r) - ord('A') + 1 for r in rows]
+        # For kit size calculation, determine the full range from min to max
+        # This accounts for kits that may have empty wells within the range
+        if rows and cols:
+            min_row = min(rows)
+            max_row = max(rows)
+            min_col = min(cols)
+            max_col = max(cols)
+            
+            # Calculate the full kit dimensions (min to max range)
+            kit_rows = ord(max_row) - ord(min_row) + 1
+            kit_cols = max_col - min_col + 1
+            total_possible_wells = kit_rows * kit_cols
+            
+            # Generate all possible wells in the kit range
+            all_kit_wells = []
+            for row_ord in range(ord(min_row), ord(max_row) + 1):
+                for col_num in range(min_col, max_col + 1):
+                    well = f"{chr(row_ord)}{col_num}"
+                    all_kit_wells.append(well)
+        else:
+            kit_rows = len(rows)
+            kit_cols = len(cols)
+            total_possible_wells = len(content_wells)
+            all_kit_wells = sorted(list(content_wells))
         
         kit_size = {
-            'rows': len(rows),
-            'columns': len(cols),
-            'total_wells': len(content_wells),
+            'rows': kit_rows,
+            'columns': kit_cols,
+            'total_wells': total_possible_wells,
+            'content_wells': len(content_wells),
             'row_range': f"{min(rows)}-{max(rows)}" if len(rows) > 1 else min(rows),
             'col_range': f"{min(cols)}-{max(cols)}" if len(cols) > 1 else str(min(cols)),
-            'wells': sorted(list(content_wells))
+            'wells': sorted(all_kit_wells)
         }
         
         print(f"Kit analysis complete: {len(materials)} materials, {len(design_data)} wells with content")
-        print(f"Kit size calculated: rows={len(rows)}, columns={len(cols)}, wells={sorted(content_wells)}")
-        print(f"Row set: {rows}, Column set: {cols}")
-        print(f"Content wells: {sorted(content_wells)}")
+        print(f"Kit size calculated: rows={kit_rows}, columns={kit_cols}, total_wells={total_possible_wells}")
+        print(f"Content wells with materials: {sorted(content_wells)}")
+        print(f"Full kit range: {min(rows) if rows else 'N/A'}-{max(rows) if rows else 'N/A'} × {min(cols) if cols else 'N/A'}-{max(cols) if cols else 'N/A'}")
+        print(f"All kit wells: {sorted(all_kit_wells)}")
         
         return jsonify({
             'materials': materials,
@@ -2212,8 +2250,19 @@ def export_experiment():
         wb.save(tmp.name)
         tmp_path = tmp.name
     
-    return send_file(tmp_path, as_attachment=True, 
-                    download_name=f'HTE_experiment_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx')
+    # Generate filename based on ELN number or timestamp
+    context = current_experiment.get('context', {})
+    eln_number = context.get('eln', '').strip()
+    
+    if eln_number:
+        # Use ELN number + date (YYYY-MM-DD format)
+        date_only = datetime.now().strftime("%Y-%m-%d")
+        filename = f'{eln_number}_{date_only}.xlsx'
+    else:
+        # Fallback to original timestamp format
+        filename = f'HTE_experiment_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    
+    return send_file(tmp_path, as_attachment=True, download_name=filename)
 
 @app.route('/api/molecule/image', methods=['POST'])
 def get_molecule_image():

@@ -5,6 +5,7 @@ import { useToast } from "./ToastContext";
 const Procedure = () => {
   const [procedure, setProcedure] = useState([]);
   const [materials, setMaterials] = useState([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [selectedWells, setSelectedWells] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -169,10 +170,14 @@ const Procedure = () => {
 
   const loadMaterials = async () => {
     try {
+      setMaterialsLoading(true);
       const response = await axios.get("/api/experiment/materials");
       setMaterials(response.data || []);
     } catch (error) {
       console.error("Error loading materials:", error);
+      setMaterials([]);
+    } finally {
+      setMaterialsLoading(false);
     }
   };
 
@@ -662,7 +667,29 @@ const Procedure = () => {
                 </tr>
               </thead>
               <tbody>
-                {materials.map((material, index) => {
+                {materialsLoading ? (
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: "center", padding: "20px", color: "var(--color-text-secondary)" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                        <div style={{ 
+                          width: "16px", 
+                          height: "16px", 
+                          border: "2px solid var(--color-border)", 
+                          borderTop: "2px solid var(--color-primary)", 
+                          borderRadius: "50%", 
+                          animation: "spin 1s linear infinite" 
+                        }}></div>
+                        Loading materials...
+                      </div>
+                    </td>
+                  </tr>
+                ) : materials.length === 0 ? (
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: "center", padding: "20px", color: "var(--color-text-secondary)" }}>
+                      No materials available. Switch to the Materials tab to add materials.
+                    </td>
+                  </tr>
+                ) : materials.map((material, index) => {
                   const materialId = getMaterialId(material);
                   const totalData = materialTotals[materialId] || {
                     umol: 0,

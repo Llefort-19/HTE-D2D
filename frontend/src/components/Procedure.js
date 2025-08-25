@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useToast } from "./ToastContext";
 
@@ -118,7 +118,7 @@ const Procedure = () => {
     return () => {
       window.removeEventListener('showHelp', handleHelpEvent);
     };
-  }, []);
+  }, [loadProcedure, loadMaterials]);
 
   // Refresh data when component becomes visible
   useEffect(() => {
@@ -133,7 +133,7 @@ const Procedure = () => {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [loadProcedure, loadMaterials]);
 
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -146,7 +146,7 @@ const Procedure = () => {
     };
   }, []);
 
-  const loadProcedure = async () => {
+  const loadProcedure = useCallback(async () => {
     try {
       const [procedureResponse, contextResponse] = await Promise.all([
         axios.get("/api/experiment/procedure"),
@@ -164,11 +164,9 @@ const Procedure = () => {
     } catch (error) {
       console.error("Error loading procedure:", error);
     }
-  };
+  }, [plateType]);
 
-
-
-  const loadMaterials = async () => {
+  const loadMaterials = useCallback(async () => {
     try {
       setMaterialsLoading(true);
       const response = await axios.get("/api/experiment/materials");
@@ -179,7 +177,7 @@ const Procedure = () => {
     } finally {
       setMaterialsLoading(false);
     }
-  };
+  }, []);
 
   const getWellData = (wellId) => {
     return (
@@ -207,18 +205,7 @@ const Procedure = () => {
     return Object.values(consolidated);
   };
 
-  const updateWellData = (wellId, materials) => {
-    const existingIndex = procedure.findIndex((p) => p.well === wellId);
-    const updatedData = { well: wellId, materials };
 
-    if (existingIndex >= 0) {
-      setProcedure((prev) =>
-        prev.map((p, i) => (i === existingIndex ? updatedData : p)),
-      );
-    } else {
-      setProcedure((prev) => [...prev, updatedData]);
-    }
-  };
 
   // Helper function to create a unique identifier for materials
   const getMaterialId = (material) => {

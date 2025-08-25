@@ -212,7 +212,6 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
       const context = contextRes.data;
 
       // Determine plate type based on existing wells
-      let plateType = "96"; // default
       let rows, columns;
       
       if (procedure && procedure.length > 0) {
@@ -221,15 +220,12 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         const maxCol = Math.max(...procedure.map(p => parseInt(p.well.slice(1))));
         
         if (maxRow <= 'D'.charCodeAt(0) && maxCol <= 6) {
-          plateType = "24";
           rows = ['A', 'B', 'C', 'D'];
           columns = ['1', '2', '3', '4', '5', '6'];
         } else if (maxRow <= 'F'.charCodeAt(0) && maxCol <= 8) {
-          plateType = "48";
           rows = ['A', 'B', 'C', 'D', 'E', 'F'];
           columns = ['1', '2', '3', '4', '5', '6', '7', '8'];
         } else {
-          plateType = "96";
           rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
           columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
         }

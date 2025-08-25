@@ -985,7 +985,7 @@ def upload_materials_from_excel():
             }
             
             # Only add if name is not empty
-            if material['name'] and material['name'] != 'nan':
+            if material.get('name') and material.get('name') != 'nan':
                 materials.append(material)
         
         if not materials:
@@ -1004,26 +1004,26 @@ def upload_materials_from_excel():
         
         # First, check all materials against the original current_materials list
         for material in materials:
-            print(f"Processing material: {material['name']} (CAS: {material['cas']})")
+            print(f"Processing material: {material.get('name', 'Unknown')} (CAS: {material.get('cas', 'Unknown')})")
             # Check if material already exists in current experiment (by name, CAS, or SMILES)
             is_duplicate = any(
-                existing['name'] == material['name'] or
-                (existing.get('cas') and material.get('cas') and existing['cas'] == material['cas']) or
-                (existing.get('smiles') and material.get('smiles') and existing['smiles'] == material['smiles'])
+                (existing.get('name') and material.get('name') and existing.get('name') == material.get('name')) or
+                (existing.get('cas') and material.get('cas') and existing.get('cas') == material.get('cas')) or
+                (existing.get('smiles') and material.get('smiles') and existing.get('smiles') == material.get('smiles'))
                 for existing in current_materials
             )
             
             if is_duplicate:
-                print(f"  -> Skipping {material['name']} (duplicate)")
-                skipped_materials.append(material['alias'] or material['name'])
+                print(f"  -> Skipping {material.get('name', 'Unknown')} (duplicate)")
+                skipped_materials.append(material.get('alias') or material.get('name', 'Unknown'))
             else:
                 # Check if material exists in inventory or private inventory by CAS number
                 inventory_material = None
-                if material.get('cas') and material['cas'].strip():
+                if material.get('cas') and material.get('cas').strip():
                     # Check main inventory
                     if inventory_data is not None:
                         inventory_match = inventory_data[
-                            inventory_data['cas_number'].astype(str).str.strip() == material['cas'].strip()
+                            inventory_data['cas_number'].astype(str).str.strip() == material.get('cas').strip()
                         ]
                         if not inventory_match.empty:
                             inventory_material = inventory_match.iloc[0].to_dict()
@@ -1043,7 +1043,7 @@ def upload_materials_from_excel():
                                     private_df[col] = private_df[col].replace('nan', None)
                                 
                                 private_match = private_df[
-                                    private_df['cas_number'].astype(str).str.strip() == material['cas'].strip()
+                                    private_df['cas_number'].astype(str).str.strip() == material.get('cas').strip()
                                 ]
                                 if not private_match.empty:
                                     inventory_material = private_match.iloc[0].to_dict()
@@ -1055,14 +1055,14 @@ def upload_materials_from_excel():
                 
                 # Use inventory data if found, otherwise use uploaded data
                 if inventory_material:
-                    print(f"  -> Using inventory data for {material['name']}")
+                    print(f"  -> Using inventory data for {material.get('name', 'Unknown')}")
                     # Use inventory data but preserve some uploaded data
                     final_material = {
-                        'name': inventory_material.get('chemical_name', material['name']),
+                        'name': inventory_material.get('chemical_name', material.get('name', '')),
                         'alias': material.get('alias', inventory_material.get('alias', '')),
-                        'cas': inventory_material.get('cas_number', material['cas']),
-                        'smiles': inventory_material.get('smiles', material['smiles']),
-                        'molecular_weight': inventory_material.get('molecular_weight', material['molecular_weight']),
+                        'cas': inventory_material.get('cas_number', material.get('cas', '')),
+                        'smiles': inventory_material.get('smiles', material.get('smiles', '')),
+                        'molecular_weight': inventory_material.get('molecular_weight', material.get('molecular_weight', '')),
                         'barcode': material.get('barcode', inventory_material.get('barcode', '')),
                         'role': material.get('role', ''),
                         'source': 'inventory_match',
@@ -1070,7 +1070,7 @@ def upload_materials_from_excel():
                         'supplier': inventory_material.get('supplier', '')
                     }
                 else:
-                    print(f"  -> Using uploaded data for {material['name']}")
+                    print(f"  -> Using uploaded data for {material.get('name', 'Unknown')}")
                     # Use uploaded data
                     final_material = material.copy()
                     final_material['source'] = 'excel_upload'
@@ -1089,7 +1089,7 @@ def upload_materials_from_excel():
         
         print(f"Final results: Added {len(added_materials)} materials ({inventory_matches} from inventory, {excel_uploads} from upload data)")
         for i, mat in enumerate(added_materials):
-            print(f"  Added {i+1}: {mat['name']} (source: {mat['source']})")
+            print(f"  Added {i+1}: {mat.get('name', 'Unknown')} (source: {mat.get('source', 'Unknown')})")
         
         return jsonify({
             'message': 'Materials uploaded successfully',
@@ -1099,7 +1099,7 @@ def upload_materials_from_excel():
             'skipped_materials': len(skipped_materials),
             'inventory_matches': inventory_matches,
             'excel_uploads': excel_uploads,
-            'added_material_names': [m['alias'] or m['name'] for m in added_materials],
+            'added_material_names': [m.get('alias') or m.get('name', 'Unknown') for m in added_materials],
             'skipped_material_names': skipped_materials
         }), 200
         
@@ -1197,11 +1197,11 @@ def analyze_kit():
             }
             
             # Only add if name or alias is not empty (allow materials with just alias)
-            if (material['name'] and material['name'] != 'nan') or (material['alias'] and material['alias'] != 'nan'):
+            if (material.get('name') and material.get('name') != 'nan') or (material.get('alias') and material.get('alias') != 'nan'):
                 materials.append(material)
-                print(f"Added material: name='{material['name']}', alias='{material['alias']}'")
+                print(f"Added material: name='{material.get('name', '')}', alias='{material.get('alias', '')}'")
             else:
-                print(f"Skipped material: name='{material['name']}', alias='{material['alias']}' (both empty)")
+                print(f"Skipped material: name='{material.get('name', '')}', alias='{material.get('alias', '')}' (both empty)")
         
         if not materials:
             return jsonify({'error': 'No valid materials found in the Materials sheet'}), 400
@@ -1233,22 +1233,22 @@ def analyze_kit():
                     
                     if compound_name and compound_name != 'nan' and compound_amount and compound_amount != 'nan':
                         # Find the material in our materials list
-                        material = next((m for m in materials if m['name'] == compound_name or m['alias'] == compound_name), None)
+                        material = next((m for m in materials if m.get('name') == compound_name or m.get('alias') == compound_name), None)
                         if material:
                             # Include all material fields to ensure proper matching with materials list
                             well_materials.append({
-                                'name': material['name'],
-                                'alias': material['alias'],
-                                'cas': material['cas'],
-                                'smiles': material['smiles'],
-                                'molecular_weight': material['molecular_weight'],
-                                'barcode': material['barcode'],
-                                'role': material['role'],
+                                'name': material.get('name', ''),
+                                'alias': material.get('alias', ''),
+                                'cas': material.get('cas', ''),
+                                'smiles': material.get('smiles', ''),
+                                'molecular_weight': material.get('molecular_weight', ''),
+                                'barcode': material.get('barcode', ''),
+                                'role': material.get('role', ''),
                                 'amount': compound_amount,
                                 'unit': 'μmol'  # Default unit
                             })
                             if well in ['A1', 'A12', 'B1', 'B12']:  # Debug corner wells
-                                print(f"DEBUG: Well {well}: Added '{compound_name}' -> material '{material['alias']}'")
+                                print(f"DEBUG: Well {well}: Added '{compound_name}' -> material '{material.get('alias', '')}'")
                         else:
                             if well in ['A1', 'A12', 'B1', 'B12']:  # Debug corner wells
                                 print(f"DEBUG: Well {well}: Compound '{compound_name}' NOT FOUND in materials")
@@ -1361,14 +1361,14 @@ def apply_kit():
         for material in materials:
             # Check if material already exists (by name, CAS, or SMILES)
             is_duplicate = any(
-                existing['name'] == material['name'] or
-                (existing.get('cas') and material.get('cas') and existing['cas'] == material['cas']) or
-                (existing.get('smiles') and material.get('smiles') and existing['smiles'] == material['smiles'])
+                (existing.get('name') and material.get('name') and existing.get('name') == material.get('name')) or
+                (existing.get('cas') and material.get('cas') and existing.get('cas') == material.get('cas')) or
+                (existing.get('smiles') and material.get('smiles') and existing.get('smiles') == material.get('smiles'))
                 for existing in current_materials
             )
             
             if is_duplicate:
-                skipped_materials.append(material['alias'] or material['name'])
+                skipped_materials.append(material.get('alias') or material.get('name', 'Unknown'))
             else:
                 added_materials.append(material)
                 current_materials.append(material)
@@ -1384,7 +1384,7 @@ def apply_kit():
             'message': 'Kit applied successfully',
             'added_materials': len(added_materials),
             'skipped_materials': len(skipped_materials),
-            'procedure_wells_updated': len([w for w in new_procedure_data if any(m['source'] == 'kit_upload' for m in w.get('materials', []))])
+            'procedure_wells_updated': len([w for w in new_procedure_data if any(m.get('source') == 'kit_upload' for m in w.get('materials', []))])
         }), 200
         
     except Exception as e:
@@ -1424,7 +1424,7 @@ def apply_kit_design_to_procedure(design, position, kit_size, current_procedure,
                     # Check if this material already exists in this well
                     existing_material = next(
                         (m for m in procedure_dict[target_well]['materials'] 
-                         if m['name'] == kit_material['name']),
+                         if m.get('name') == kit_material.get('name')),
                         None
                     )
                     
@@ -2210,10 +2210,10 @@ def export_experiment():
                 if i < len(all_materials):
                     material = all_materials[i]
                     row_data.extend([
-                        material['name'],
+                        material.get('name', ''),
                         material.get('alias', ''),
                         material.get('cas', ''),
-                        material['amount']
+                        material.get('amount', '')
                     ])
                 else:
                     # Fill empty columns

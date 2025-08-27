@@ -726,13 +726,13 @@ def export_analytical_template():
         
         # Get ELN number from context for sample IDs
         context = current_experiment.get('context', {})
-        eln_number = context.get('eln_number', 'ELN-001')
+        eln_number = context.get('eln', 'ELN-001')  # Use 'eln' field from context
         
         row_num = 2
         for row in rows:
             for col in columns:
                 well = f"{row}{col}"
-                sample_id = f"{eln_number}-{well}"
+                sample_id = f"{eln_number}_{well}"  # Use underscore instead of hyphen
                 
                 # Add well and sample ID
                 ws.cell(row=row_num, column=1, value=well)
@@ -861,11 +861,42 @@ def upload_analytical_data():
         
         print(f"Current experiment state before upload: {list(current_experiment.keys())}")
         
+        # Process the data to ensure correct ID format
+        # Get ELN number from context
+        context = current_experiment.get('context', {})
+        eln_number = context.get('eln', 'ELN-001')
+        
+        # Process each row to ensure correct ID format
+        processed_data = []
+        for _, row in df.iterrows():
+            processed_row = row.copy()
+            
+            # Check if there's a 'Sample ID' column and fix the format
+            if 'Sample ID' in processed_row:
+                sample_id = processed_row['Sample ID']
+                if sample_id and isinstance(sample_id, str):
+                    # Check if it's in the wrong format (contains hyphen instead of underscore)
+                    if '-' in sample_id and '_' not in sample_id:
+                        # Extract well position (assuming format like "ELN-001-A1")
+                        parts = sample_id.split('-')
+                        if len(parts) >= 3:
+                            well_part = '-'.join(parts[2:])  # Get the well part (A1, B2, etc.)
+                            processed_row['Sample ID'] = f"{eln_number}_{well_part}"
+                    # If no ELN number in the ID, add it
+                    elif not sample_id.startswith(eln_number):
+                        # Extract well position from the ID
+                        well_match = re.search(r'[A-H]\d+', sample_id)
+                        if well_match:
+                            well_part = well_match.group()
+                            processed_row['Sample ID'] = f"{eln_number}_{well_part}"
+            
+            processed_data.append(processed_row)
+        
         # Store the uploaded data in the current experiment
         uploaded_data = {
             'filename': file.filename,
             'upload_date': datetime.now().isoformat(),
-            'data': df.to_dict('records'),
+            'data': processed_data,
             'columns': df.columns.tolist(),
             'shape': df.shape,
             'area_columns': area_columns  # Add area columns information

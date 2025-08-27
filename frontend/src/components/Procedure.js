@@ -100,7 +100,38 @@ const Procedure = () => {
     setPendingPlateType(null);
   };
 
+  const loadProcedure = useCallback(async () => {
+    try {
+      const [procedureResponse, contextResponse] = await Promise.all([
+        axios.get("/api/experiment/procedure"),
+        axios.get("/api/experiment/context")
+      ]);
+      
+      setProcedure(procedureResponse.data || []);
+      
+      // Check if there's a plate type set in the context from kit upload
+      const context = contextResponse.data || {};
+      if (context.plate_type && context.plate_type !== plateType) {
+        console.log(`Setting plate type from context: ${context.plate_type}`);
+        setPlateType(context.plate_type);
+      }
+    } catch (error) {
+      console.error("Error loading procedure:", error);
+    }
+  }, [plateType]);
 
+  const loadMaterials = useCallback(async () => {
+    try {
+      setMaterialsLoading(true);
+      const response = await axios.get("/api/experiment/materials");
+      setMaterials(response.data || []);
+    } catch (error) {
+      console.error("Error loading materials:", error);
+      setMaterials([]);
+    } finally {
+      setMaterialsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadProcedure();
@@ -144,39 +175,6 @@ const Procedure = () => {
     return () => {
       document.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, []);
-
-  const loadProcedure = useCallback(async () => {
-    try {
-      const [procedureResponse, contextResponse] = await Promise.all([
-        axios.get("/api/experiment/procedure"),
-        axios.get("/api/experiment/context")
-      ]);
-      
-      setProcedure(procedureResponse.data || []);
-      
-      // Check if there's a plate type set in the context from kit upload
-      const context = contextResponse.data || {};
-      if (context.plate_type && context.plate_type !== plateType) {
-        console.log(`Setting plate type from context: ${context.plate_type}`);
-        setPlateType(context.plate_type);
-      }
-    } catch (error) {
-      console.error("Error loading procedure:", error);
-    }
-  }, [plateType]);
-
-  const loadMaterials = useCallback(async () => {
-    try {
-      setMaterialsLoading(true);
-      const response = await axios.get("/api/experiment/materials");
-      setMaterials(response.data || []);
-    } catch (error) {
-      console.error("Error loading materials:", error);
-      setMaterials([]);
-    } finally {
-      setMaterialsLoading(false);
-    }
   }, []);
 
   const getWellData = (wellId) => {

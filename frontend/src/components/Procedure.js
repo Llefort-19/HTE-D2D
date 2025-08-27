@@ -73,20 +73,32 @@ const Procedure = () => {
     }
   };
 
-  const switchPlateType = (newPlateType) => {
+  const switchPlateType = async (newPlateType) => {
     setPlateType(newPlateType);
     setSelectedWells([]);
     setSelectedMaterial(null);
     setAmount("");
     // Clear all procedure data
     setProcedure([]);
+    
+    // Save the new plate type to context
+    try {
+      const contextResponse = await axios.get("/api/experiment/context");
+      const currentContext = contextResponse.data || {};
+      await axios.post("/api/experiment/context", {
+        ...currentContext,
+        plate_type: newPlateType
+      });
+    } catch (error) {
+      console.error("Error saving plate type to context:", error);
+    }
   };
 
   const confirmPlateSwitch = async () => {
     try {
       // Clear procedure data from backend
       await axios.post("/api/experiment/procedure", []);
-      switchPlateType(pendingPlateType);
+      await switchPlateType(pendingPlateType);
       setShowPlateSwitchWarning(false);
       setPendingPlateType(null);
     } catch (error) {
@@ -109,16 +121,16 @@ const Procedure = () => {
       
       setProcedure(procedureResponse.data || []);
       
-      // Check if there's a plate type set in the context from kit upload
+      // Only set plate type from context on initial load, not on every refresh
       const context = contextResponse.data || {};
-      if (context.plate_type && context.plate_type !== plateType) {
+      if (context.plate_type && !procedure.length) {
         console.log(`Setting plate type from context: ${context.plate_type}`);
         setPlateType(context.plate_type);
       }
     } catch (error) {
       console.error("Error loading procedure:", error);
     }
-  }, [plateType]);
+  }, [procedure.length]);
 
   const loadMaterials = useCallback(async () => {
     try {

@@ -672,29 +672,35 @@ def experiment_analytical():
     """Get or update analytical data"""
     global current_experiment
     
-    if request.method == 'POST':
-        # Handle selected compounds update
-        if 'selectedCompounds' in request.json:
-            if 'analytical_data' not in current_experiment:
-                current_experiment['analytical_data'] = {}
-            current_experiment['analytical_data']['selectedCompounds'] = request.json['selectedCompounds']
-            return jsonify({'message': 'Selected compounds updated'})
+    try:
+        if request.method == 'POST':
+            # Handle selected compounds update
+            if 'selectedCompounds' in request.json:
+                if 'analytical_data' not in current_experiment:
+                    current_experiment['analytical_data'] = {}
+                current_experiment['analytical_data']['selectedCompounds'] = request.json['selectedCompounds']
+                return jsonify({'message': 'Selected compounds updated'})
+            else:
+                # Handle other analytical data updates
+                current_experiment['analytical_data'] = request.json
+                return jsonify({'message': 'Analytical data updated'})
+        
+        # Return the analytical data structure that frontend expects
+        analytical_data = current_experiment.get('analytical_data', {})
+        if isinstance(analytical_data, list):
+            # If it's a list (old format), convert to new format
+            return jsonify({
+                'selectedCompounds': [],
+                'uploadedFiles': analytical_data
+            })
         else:
-            # Handle other analytical data updates
-            current_experiment['analytical_data'] = request.json
-            return jsonify({'message': 'Analytical data updated'})
-    
-    # Return the analytical data structure that frontend expects
-    analytical_data = current_experiment.get('analytical_data', {})
-    if isinstance(analytical_data, list):
-        # If it's a list (old format), convert to new format
-        return jsonify({
-            'selectedCompounds': [],
-            'uploadedFiles': analytical_data
-        })
-    else:
-        # Return the analytical data as is
-        return jsonify(analytical_data)
+            # Return the analytical data as is
+            return jsonify(analytical_data)
+    except Exception as e:
+        print(f"Error in experiment_analytical: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @app.route('/api/experiment/analytical/template', methods=['POST'])
 def export_analytical_template():
@@ -869,7 +875,7 @@ def upload_analytical_data():
         # Process each row to ensure correct ID format
         processed_data = []
         for _, row in df.iterrows():
-            processed_row = row.copy()
+            processed_row = row.to_dict()  # Convert pandas Series to dict
             
             # Check if there's a 'Sample ID' column and fix the format
             if 'Sample ID' in processed_row:

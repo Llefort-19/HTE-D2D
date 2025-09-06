@@ -10,7 +10,11 @@ openpyxl==3.1.5
 pillow==10.2.0
 
 # Chemical informatics (provides the rdkit module)
-rdkit-pypi==2023.9.1
+# Note: RDKit can be installed via conda (recommended) or pip
+# Option 1 (conda - recommended): conda install -c conda-forge rdkit
+# Option 2 (pip): pip install rdkit
+# Option 3 (specific version): pip install rdkit-pypi>=2022.9.0
+# Tested with rdkit 2025.3.5 and rdkit-pypi 2022.9.5
 
 # Input/output validation
 marshmallow==3.20.2

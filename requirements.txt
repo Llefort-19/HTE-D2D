@@ -1,33 +1,16 @@
-# Core framework and API
+# Backend runtime dependencies
 flask==2.3.3
 flask-cors==4.0.0
 
 # Data processing and Excel support
 pandas==2.3.1
 openpyxl==3.1.5
-numpy==2.3.1
 
 # Image processing
 pillow==10.2.0
 
-# Environment configuration
-python-dotenv==1.0.1
+# Chemical informatics (provides the rdkit module)
+rdkit-pypi==2023.9.1
 
-# Chemical informatics and visualization
-rdkit==2025.3.5
-
-# Additional dependencies
-blinker==1.9.0
-cairocffi==1.7.1
-CairoSVG==2.8.2
-cffi==1.17.1
-click==8.2.1
-colorama==0.4.6
-cssselect2==0.8.0
-defusedxml==0.7.1
-et_xmlfile==2.0.0
-itsdangerous==2.2.0
-Jinja2==3.1.6
-lxml==6.0.0
-MarkupSafe==3.0.2
-wheel==0.45.1 
+# Input/output validation
+marshmallow==3.20.2

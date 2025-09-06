@@ -212,7 +212,6 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
       const context = contextRes.data;
 
       // Determine plate type based on existing wells
-      let plateType = "96"; // default
       let rows, columns;
       
       if (procedure && procedure.length > 0) {
@@ -221,15 +220,12 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         const maxCol = Math.max(...procedure.map(p => parseInt(p.well.slice(1))));
         
         if (maxRow <= 'D'.charCodeAt(0) && maxCol <= 6) {
-          plateType = "24";
           rows = ['A', 'B', 'C', 'D'];
           columns = ['1', '2', '3', '4', '5', '6'];
         } else if (maxRow <= 'F'.charCodeAt(0) && maxCol <= 8) {
-          plateType = "48";
           rows = ['A', 'B', 'C', 'D', 'E', 'F'];
           columns = ['1', '2', '3', '4', '5', '6', '7', '8'];
         } else {
-          plateType = "96";
           rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
           columns = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
         }
@@ -552,58 +548,23 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
   };
 
       return (
-      <header className="top-app-bar" style={{ 
-        height: "80px", 
-        minHeight: "80px",
-        padding: "0",
-        display: "flex",
-        alignItems: "center"
-      }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: "100%",
-          padding: "0 60px",
-          width: "100%",
-          maxWidth: "100%"
-        }}>
-          {/* Logo Section - Left */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            flexShrink: 0,
-            minWidth: "200px"
-          }}>
-            <div className="logo-container">
-              <img 
-                src="/logo-hte-d2d.png" 
-                alt="HTE D2D - Design to Data" 
-                className="app-logo"
-                style={{
-                  height: "60px",
-                  width: "auto",
-                  objectFit: "contain"
-                }}
-              />
-            </div>
+      <header className="clean-header">
+        <div className="header-flex-container">
+          {/* Brand Section - Left */}
+          <div className="header-brand">
+            <img 
+              src="/logo-hte-d2d.png" 
+              alt="HTE D2D" 
+              className="brand-logo"
+            />
           </div>
 
           {/* Navigation Section - Center */}
-          <nav style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "1rem",
-            flex: "1",
-            position: "absolute",
-            left: "50%",
-            transform: "translateX(-50%)"
-          }}>
+          <nav className="header-navigation">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                className={`nav-link ${activeTab === tab.id ? "active" : ""}`}
+                className={`nav-pill ${activeTab === tab.id ? "active" : ""}`}
                 onClick={() => onTabChange(tab.id)}
               >
                 {tab.label}
@@ -611,42 +572,33 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
             ))}
           </nav>
 
-          {/* Buttons Section - Right */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            flexShrink: 0,
-            minWidth: "200px",
-            justifyContent: "flex-end"
-          }}>
-          <button 
-            className="btn btn-success export-btn"
-            onClick={exportToExcel}
-            disabled={isExporting}
-            title="Export all experiment data to Excel"
-            style={{ marginRight: "10px" }}
-          >
-            {isExporting ? 'Exporting...' : 'Export'}
-          </button>
-          <button 
-            className="btn btn-info help-btn"
-            onClick={handleHelp}
-            title={`Help for ${activeTab} tab`}
-            style={{ marginRight: "10px" }}
-          >
-            Help
-          </button>
-          <button 
-            className="btn btn-warning reset-btn"
-            onClick={handleReset}
-            title="Reset all experiment data"
-          >
-            Reset
-          </button>
+          {/* Action Buttons - Right */}
+          <div className="header-actions">
+            <button 
+              className="action-btn action-export"
+              onClick={exportToExcel}
+              disabled={isExporting}
+              title="Export all experiment data to Excel"
+            >
+              {isExporting ? 'Exporting...' : 'Export'}
+            </button>
+            <button 
+              className="action-btn action-help"
+              onClick={handleHelp}
+              title={`Help for ${activeTab} tab`}
+            >
+              Help
+            </button>
+            <button 
+              className="action-btn action-reset"
+              onClick={handleReset}
+              title="Reset all experiment data"
+            >
+              Reset
+            </button>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
   );
 };
 

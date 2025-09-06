@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const Help = ({ tabId, visible, onClose }) => {
   const [helpContent, setHelpContent] = useState(null);
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const previousActiveElement = useRef(null);
 
   useEffect(() => {
     if (visible && tabId) {
@@ -235,20 +238,71 @@ const Help = ({ tabId, visible, onClose }) => {
     }
   };
 
-  // ESC key support
+  // Focus management and accessibility
   useEffect(() => {
-    const handleEscKey = (e) => {
-      if (e.key === 'Escape' && visible) {
+    if (visible) {
+      // Store the currently focused element
+      previousActiveElement.current = document.activeElement;
+      
+      // Focus the close button when modal opens
+      setTimeout(() => {
+        if (closeButtonRef.current) {
+          closeButtonRef.current.focus();
+        }
+      }, 100);
+    } else if (previousActiveElement.current) {
+      // Restore focus when modal closes
+      previousActiveElement.current.focus();
+    }
+  }, [visible]);
+
+  // ESC key support and focus trap
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!visible) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
+        return;
+      }
+
+      // Focus trap - keep focus within modal
+      if (e.key === 'Tab') {
+        const modal = modalRef.current;
+        if (!modal) return;
+
+        const focusableElements = modal.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          // Shift + Tab: moving backward
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          // Tab: moving forward
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
       }
     };
 
     if (visible) {
-      document.addEventListener('keydown', handleEscKey);
+      document.addEventListener('keydown', handleKeyDown);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
     }
 
     return () => {
-      document.removeEventListener('keydown', handleEscKey);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'unset';
     };
   }, [visible, onClose]);
 
@@ -257,11 +311,34 @@ const Help = ({ tabId, visible, onClose }) => {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: "800px" }}>
+    <div 
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="help-modal-title"
+      onClick={(e) => {
+        // Close modal if clicking outside of modal content
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        ref={modalRef}
+        className="modal-content" 
+        style={{ maxWidth: "800px" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
-          <h3>{helpContent.title}</h3>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <h3 id="help-modal-title">{helpContent.title}</h3>
+          <button 
+            ref={closeButtonRef}
+            className="modal-close" 
+            onClick={onClose}
+            aria-label={`Close ${helpContent.title} dialog`}
+          >
+            ×
+          </button>
         </div>
         <div className="modal-body" style={{ textAlign: "left" }}>
           {helpContent.content}

@@ -140,8 +140,8 @@ code {
 }
 
 .well {
-  width: 35px;
-  height: 35px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -175,49 +175,50 @@ code {
 .plate-container {
   display: flex;
   flex-direction: column;
+  align-items: center; /* center contents horizontally */
+  justify-content: center; /* center contents vertically */
   background-color: var(--color-background);
   border-radius: var(--radius-lg);
   padding: 10px;
   border: 1px solid var(--color-border);
-  /* Fixed dimensions to fit 96-well plate without scrolling */
-  width: 505px; /* 455px plate + 10px padding */
-  height: 350px; /* Reduced to fit plate + headers */
+  /* Size large enough for 96-well but not forcing overflow */
+  min-width: 490px; /* fits 96-well grid at 33px cells + gaps + padding */
+  height: auto;
+  min-height: 360px; /* tight but comfortable for 96-well */
   position: relative;
+  margin: 0 auto; /* center container within section */
 }
 
 .column-headers {
   display: grid;
-  gap: 2px;
-  margin-bottom: 2px;
+  gap: 3px;
+  margin-bottom: 3px;
 }
 
 .column-headers.plate-96 {
-  grid-template-columns: 35px repeat(12, 35px);
+  grid-template-columns: 33px repeat(12, 33px);
+  gap: 3px;
 }
 
 .column-headers.plate-24 {
-  grid-template-columns: 35px repeat(6, 35px);
-  width: 245px; /* 35px + (6 * 35px) */
-  position: absolute;
-  top: 50px; /* Account for plate header */
-  left: 50%; /* Center horizontally */
-  transform: translateX(-50%); /* Center the element */
-  z-index: 1;
+  grid-template-columns: 33px repeat(6, 33px);
+  gap: 3px;
+  width: auto;
+  position: static;
+  align-self: center;
 }
 
 .column-headers.plate-48 {
-  grid-template-columns: 35px repeat(8, 35px);
-  width: 315px; /* 35px + (8 * 35px) */
-  position: absolute;
-  top: 50px; /* Account for plate header */
-  left: 50%; /* Center horizontally */
-  transform: translateX(-50%); /* Center the element */
-  z-index: 1;
+  grid-template-columns: 33px repeat(8, 33px);
+  gap: 3px;
+  width: auto;
+  position: static;
+  align-self: center;
 }
 
 .corner-cell {
-  width: 35px;
-  height: 30px;
+  width: 33px;
+  height: 27px;
   background-color: transparent;
 }
 
@@ -232,8 +233,8 @@ code {
   font-weight: bold;
   font-size: 10px;
   color: var(--color-text-secondary);
-  width: 35px;
-  height: 30px;
+  width: 33px;
+  height: 27px;
 }
 
 .select-all-button:hover {
@@ -242,8 +243,8 @@ code {
 }
 
 .header-cell {
-  width: 35px;
-  height: 30px;
+  width: 33px;
+  height: 27px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -263,46 +264,39 @@ code {
 .plate-grid {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  align-items: center; /* center each grid set */
 }
 
 .plate-grid.plate-96 .plate-row {
   display: grid;
-  grid-template-columns: 35px repeat(12, 35px) !important;
-  gap: 2px;
+  grid-template-columns: 33px repeat(12, 33px) !important;
+  gap: 3px;
 }
 
 .plate-grid.plate-24 {
-  width: 245px; /* 35px + (6 * 35px) */
-  position: absolute;
-  top: 80px; /* Account for plate header + column headers */
-  left: 50%; /* Center horizontally */
-  transform: translateX(-50%); /* Center the element */
+  width: auto;
 }
 
 .plate-grid.plate-24 .plate-row {
   display: grid;
-  grid-template-columns: 35px repeat(6, 35px) !important;
-  gap: 2px;
+  grid-template-columns: 33px repeat(6, 33px) !important;
+  gap: 3px;
 }
 
 .plate-grid.plate-48 {
-  width: 315px; /* 35px + (8 * 35px) */
-  position: absolute;
-  top: 80px; /* Account for plate header + column headers */
-  left: 50%; /* Center horizontally */
-  transform: translateX(-50%); /* Center the element */
+  width: auto;
 }
 
 .plate-grid.plate-48 .plate-row {
   display: grid;
-  grid-template-columns: 35px repeat(8, 35px) !important;
-  gap: 2px;
+  grid-template-columns: 33px repeat(8, 33px) !important;
+  gap: 3px;
 }
 
 .row-header {
-  width: 35px;
-  height: 35px;
+  width: 33px;
+  height: 33px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -320,8 +314,8 @@ code {
 }
 
 .well {
-  width: 35px;
-  height: 35px;
+  width: 33px;
+  height: 33px;
   border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
@@ -388,6 +382,8 @@ code {
 .plate-section h3 {
   margin-bottom: 15px;
   color: var(--color-heading);
+  padding-left: 12px; /* add breathing room from left border */
+  margin-top: 4px; /* ensure space from top border */
 }
 
 .materials-table-container {

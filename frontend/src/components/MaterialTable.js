@@ -17,7 +17,7 @@ const MaterialTable = memo(({
 }) => {
   
   const renderActionButtons = (material, index) => (
-    <div className="actions-cell">
+    <div className="actions-cell" style={{ width: "260px", display: "flex", flexWrap: "wrap", gap: "4px", justifyContent: "center" }}>
       <button
         className="btn btn-warning"
         onClick={() => onRemove(index)}
@@ -141,7 +141,7 @@ const MaterialTable = memo(({
             <th>SMILES</th>
             <th>Barcode</th>
             <th>Role</th>
-            <th style={{ textAlign: "center" }}>Actions</th>
+            <th style={{ textAlign: "center", width: "280px", minWidth: "280px" }}>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -166,7 +166,7 @@ const MaterialTable = memo(({
                   ))}
                 </select>
               </td>
-              <td style={{ textAlign: "center" }}>{renderActionButtons(material, index)}</td>
+              <td style={{ textAlign: "center", width: "280px", minWidth: "280px" }}>{renderActionButtons(material, index)}</td>
             </tr>
           ))}
         </tbody>

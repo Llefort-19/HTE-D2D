@@ -30,7 +30,7 @@ const ExperimentContext = () => {
   const handleRoleChange = (moleculeIndex, newRole) => {
     if (sdfData && sdfData.molecules) {
       const updatedMolecules = [...sdfData.molecules];
-      updatedMolecules[moleculeIndex].role = newRole;
+      updatedMolecules[moleculeIndex].role = newRole || ""; // Ensure role is never undefined
       setSdfData({
         ...sdfData,
         molecules: updatedMolecules
@@ -173,7 +173,15 @@ const ExperimentContext = () => {
     try {
       const response = await axios.get("/api/experiment/context");
       if (response.data && Object.keys(response.data).length > 0) {
-        setContext(response.data);
+        // Ensure all fields have defined values to prevent controlled/uncontrolled input switching
+        const loadedContext = {
+          author: response.data.author || "",
+          date: response.data.date || new Date().toISOString().split("T")[0],
+          project: response.data.project || "",
+          eln: response.data.eln || "",
+          objective: response.data.objective || "",
+        };
+        setContext(loadedContext);
       }
     } catch (error) {
       console.error("Error loading context:", error);

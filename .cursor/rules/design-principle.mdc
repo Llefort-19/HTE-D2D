@@ -1,0 +1,74 @@
+---
+description: design principles
+globs:
+alwaysApply: true
+---
+{
+  "rules": [
+    {
+      "title": "S-Tier Principles — React + Python",
+      "trigger": "",
+      "what_to_do": "Apply users-first, clarity, speed, consistency, accessibility (WCAG AA+), and opinionated defaults to every change. Enforce an 8px spacing grid, AA contrast, visible focus rings, and consistent component states (default/hover/active/focus/disabled). Prefer Tailwind utilities in React and typed props; in Python, keep clean REST/JSON with paginated endpoints and explicit errors. If a request conflicts with these, surface trade-offs and propose a principled alternative."
+    },
+    {
+      "title": "Seed tokens (Tailwind + CSS vars)",
+      "trigger": "seed tokens",
+      "what_to_do": "Create/extend tailwind.config.js with brand/neutral/semantic palettes, radii (sm 4–6px, md 8–12px), spacing on 8px grid, and type scale (H1/H2/H3, body L/M/S). Add light/dark tokens via :root / .dark. Output a patch diff for tailwind.config.js and src/index.css. Map existing components to tokens."
+    },
+    {
+      "title": "React components — spec & states",
+      "trigger": "components pass",
+      "what_to_do": "Audit/create: Button, Input, Select, Toggle, Card, Table, Dialog, Tabs, Badge, Tooltip, Progress, Avatar. For each, define props and states (default/hover/active/focus/disabled), keyboard behavior, and ARIA. Produce minimal TSX examples with Tailwind classes and show a small story-like usage snippet per component."
+    },
+    {
+      "title": "Layout & hierarchy pass",
+      "trigger": "layout pass",
+      "what_to_do": "Use Playwright MCP to open http://localhost:3000. Capture dashboard at 1440×900 and 390×844. Report issues in hierarchy/alignment/whitespace with CSS selectors and propose exact Tailwind class changes. Ensure 12-col mindset, consistent gutters, and readable type scale."
+    },
+    {
+      "title": "Responsive audit — 360/768/1024/1440",
+      "trigger": "responsive audit",
+      "what_to_do": "With Playwright MCP, screenshot key routes at 360/768/1024/1440. Flag overflow, clipped controls, table issues. Return per-breakpoint diffs and copy-paste CSS/Tailwind fixes (media queries or responsive utility classes)."
+    },
+    {
+      "title": "Accessibility + keyboard audit",
+      "trigger": "a11y audit",
+      "what_to_do": "With Playwright MCP, check contrast, focus order, dialog focus-trap, and Enter/Esc behavior. Add missing aria-* / roles / labels. Output a punch-list with selectors and exact prop/class changes. Include small React snippets (focus-visible rings)."
+    },
+    {
+      "title": "Data tables UX (React + API)",
+      "trigger": "tables audit",
+      "what_to_do": "Enforce: left-align text/right-align numbers, bold headers, adequate row height. Add sortable headers (aria-sort), filters above table, global search, pagination (preferred) or virtualization (>200 rows), sticky header/first column. Return React snippets + minimal Python API pagination spec."
+    },
+    {
+      "title": "Config panels — clarity & defaults",
+      "trigger": "config audit",
+      "what_to_do": "Ensure clear labels, helper text, logical grouping, progressive disclosure (accordion for advanced), sensible defaults, Reset to defaults, and inline validation. Provide copy edits (≤50 chars) and code patterns (React form + toast)."
+    },
+    {
+      "title": "Interactions & perceived perf",
+      "trigger": "interactions pass",
+      "what_to_do": "Use 150–300ms transitions (ease-in-out), skeletons for page/route loads, spinners only inline. Debounce 150–300ms on search, lazy-load offscreen. Provide diffs to add a <Skeleton /> component and replace any blocking spinners."
+    },
+    {
+      "title": "Color + dark mode tokens",
+      "trigger": "color audit",
+      "what_to_do": "Validate AA contrast for text/background; propose token swaps if failing. Ensure dark mode via .dark class and data-theme toggle. Output updated CSS vars and a tiny theme switcher."
+    },
+    {
+      "title": "Seed visual baselines",
+      "trigger": "seed baseline",
+      "what_to_do": "With Playwright MCP, capture Dashboard, Detail, and Primary Flow at 1024×768 and 1440×900; save under /tests/visual/baseline. Return file paths + a runnable Playwright test that compares against baseline."
+    },
+    {
+      "title": "Opinionated defaults (API→UI)",
+      "trigger": "defaults pass",
+      "what_to_do": "Propose server-backed defaults (page size, date ranges, sort order) returned from /meta/preferences and consumed by React on boot. Ensure empty states explain next steps and primary actions are visually prominent; de-emphasize secondary."
+    },
+    {
+      "title": "Playwright UI helper (router)",
+      "trigger": "ui helper",
+      "what_to_do": "If message includes responsive → run Responsive audit; a11y/keyboard → run Accessibility + keyboard audit; tables → run Data tables UX; config → run Config panels; colors → run Color + dark mode; baseline → run Seed visual baselines. Open http://localhost:3000 unless I specify another URL. Always return screenshots + concrete code diffs."
+    }
+  ]
+}

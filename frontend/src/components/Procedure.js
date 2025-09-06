@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useToast } from "./ToastContext";
 
 const Procedure = () => {
   const [procedure, setProcedure] = useState([]);
   const [materials, setMaterials] = useState([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
   const [selectedWells, setSelectedWells] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -72,20 +73,32 @@ const Procedure = () => {
     }
   };
 
-  const switchPlateType = (newPlateType) => {
+  const switchPlateType = async (newPlateType) => {
     setPlateType(newPlateType);
     setSelectedWells([]);
     setSelectedMaterial(null);
     setAmount("");
     // Clear all procedure data
     setProcedure([]);
+    
+    // Save the new plate type to context
+    try {
+      const contextResponse = await axios.get("/api/experiment/context");
+      const currentContext = contextResponse.data || {};
+      await axios.post("/api/experiment/context", {
+        ...currentContext,
+        plate_type: newPlateType
+      });
+    } catch (error) {
+      console.error("Error saving plate type to context:", error);
+    }
   };
 
   const confirmPlateSwitch = async () => {
     try {
       // Clear procedure data from backend
       await axios.post("/api/experiment/procedure", []);
-      switchPlateType(pendingPlateType);
+      await switchPlateType(pendingPlateType);
       setShowPlateSwitchWarning(false);
       setPendingPlateType(null);
     } catch (error) {
@@ -99,7 +112,38 @@ const Procedure = () => {
     setPendingPlateType(null);
   };
 
+  const loadProcedure = useCallback(async () => {
+    try {
+      const [procedureResponse, contextResponse] = await Promise.all([
+        axios.get("/api/experiment/procedure"),
+        axios.get("/api/experiment/context")
+      ]);
+      
+      setProcedure(procedureResponse.data || []);
+      
+      // Only set plate type from context on initial load, not on every refresh
+      const context = contextResponse.data || {};
+      if (context.plate_type && !procedure.length) {
+        console.log(`Setting plate type from context: ${context.plate_type}`);
+        setPlateType(context.plate_type);
+      }
+    } catch (error) {
+      console.error("Error loading procedure:", error);
+    }
+  }, [procedure.length]);
 
+  const loadMaterials = useCallback(async () => {
+    try {
+      setMaterialsLoading(true);
+      const response = await axios.get("/api/experiment/materials");
+      setMaterials(response.data || []);
+    } catch (error) {
+      console.error("Error loading materials:", error);
+      setMaterials([]);
+    } finally {
+      setMaterialsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadProcedure();
@@ -117,7 +161,7 @@ const Procedure = () => {
     return () => {
       window.removeEventListener('showHelp', handleHelpEvent);
     };
-  }, []);
+  }, [loadProcedure, loadMaterials]);
 
   // Refresh data when component becomes visible
   useEffect(() => {
@@ -132,7 +176,7 @@ const Procedure = () => {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [loadProcedure, loadMaterials]);
 
   useEffect(() => {
     const handleGlobalMouseUp = () => {
@@ -144,37 +188,6 @@ const Procedure = () => {
       document.removeEventListener("mouseup", handleGlobalMouseUp);
     };
   }, []);
-
-  const loadProcedure = async () => {
-    try {
-      const [procedureResponse, contextResponse] = await Promise.all([
-        axios.get("/api/experiment/procedure"),
-        axios.get("/api/experiment/context")
-      ]);
-      
-      setProcedure(procedureResponse.data || []);
-      
-      // Check if there's a plate type set in the context from kit upload
-      const context = contextResponse.data || {};
-      if (context.plate_type && context.plate_type !== plateType) {
-        console.log(`Setting plate type from context: ${context.plate_type}`);
-        setPlateType(context.plate_type);
-      }
-    } catch (error) {
-      console.error("Error loading procedure:", error);
-    }
-  };
-
-
-
-  const loadMaterials = async () => {
-    try {
-      const response = await axios.get("/api/experiment/materials");
-      setMaterials(response.data || []);
-    } catch (error) {
-      console.error("Error loading materials:", error);
-    }
-  };
 
   const getWellData = (wellId) => {
     return (
@@ -202,18 +215,7 @@ const Procedure = () => {
     return Object.values(consolidated);
   };
 
-  const updateWellData = (wellId, materials) => {
-    const existingIndex = procedure.findIndex((p) => p.well === wellId);
-    const updatedData = { well: wellId, materials };
 
-    if (existingIndex >= 0) {
-      setProcedure((prev) =>
-        prev.map((p, i) => (i === existingIndex ? updatedData : p)),
-      );
-    } else {
-      setProcedure((prev) => [...prev, updatedData]);
-    }
-  };
 
   // Helper function to create a unique identifier for materials
   const getMaterialId = (material) => {
@@ -662,7 +664,29 @@ const Procedure = () => {
                 </tr>
               </thead>
               <tbody>
-                {materials.map((material, index) => {
+                {materialsLoading ? (
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: "center", padding: "20px", color: "var(--color-text-secondary)" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                        <div style={{ 
+                          width: "16px", 
+                          height: "16px", 
+                          border: "2px solid var(--color-border)", 
+                          borderTop: "2px solid var(--color-primary)", 
+                          borderRadius: "50%", 
+                          animation: "spin 1s linear infinite" 
+                        }}></div>
+                        Loading materials...
+                      </div>
+                    </td>
+                  </tr>
+                ) : materials.length === 0 ? (
+                  <tr>
+                    <td colSpan="3" style={{ textAlign: "center", padding: "20px", color: "var(--color-text-secondary)" }}>
+                      No materials available. Switch to the Materials tab to add materials.
+                    </td>
+                  </tr>
+                ) : materials.map((material, index) => {
                   const materialId = getMaterialId(material);
                   const totalData = materialTotals[materialId] || {
                     umol: 0,

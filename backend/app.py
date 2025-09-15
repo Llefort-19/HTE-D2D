@@ -91,6 +91,7 @@ def register_blueprints(app):
     from routes.kit import kit_bp
     from routes.uploads import uploads_bp
     from routes.export import export_bp
+    from routes.experiment_import import import_bp
     
     app.register_blueprint(inventory_bp)
     app.register_blueprint(experiment_bp)
@@ -99,6 +100,7 @@ def register_blueprints(app):
     app.register_blueprint(kit_bp)
     app.register_blueprint(uploads_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(import_bp)
 
 def register_error_handlers(app):
     """Register error handlers for consistent error responses."""

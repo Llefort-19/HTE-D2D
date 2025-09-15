@@ -37,7 +37,61 @@ def experiment_context():
             
         return jsonify({'message': 'Context updated'})
     
-    return jsonify(current_experiment['context'])
+    # Get context and ensure all fields are present with proper format
+    context = current_experiment.get('context', {}).copy()
+    
+    # Ensure all required fields exist
+    default_context = {
+        'author': '',
+        'date': '',
+        'project': '',
+        'eln': '',
+        'objective': ''
+    }
+    
+    # Merge defaults with existing context
+    for key, default_value in default_context.items():
+        if key not in context:
+            context[key] = default_value
+    
+    # Fix date format if needed - be very conservative
+    from datetime import datetime
+    if 'date' in context and context['date']:
+        date_str = str(context['date'])
+        import re
+
+        # Only normalize dates that are clearly malformed or contain timezone info
+        if ('GMT' in date_str or 'UTC' in date_str):
+            # Convert timezone-aware dates to local date
+            context['date'] = datetime.now().strftime('%Y-%m-%d')
+        elif date_str and not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+            # Only try to normalize if it's a clearly invalid format
+            try:
+                # If it's already in a standard format, leave it alone
+                datetime.strptime(date_str, '%Y-%m-%d')
+            except ValueError:
+                # Only fix if parsing as YYYY-MM-DD fails
+                try:
+                    date_formats = ['%m/%d/%Y', '%d/%m/%Y', '%d-%m-%Y', '%m-%d-%Y']
+                    parsed_date = None
+                    for fmt in date_formats:
+                        try:
+                            parsed_date = datetime.strptime(date_str, fmt)
+                            break
+                        except ValueError:
+                            continue
+
+                    if parsed_date:
+                        context['date'] = parsed_date.strftime('%Y-%m-%d')
+                    # Don't change the date if we can't parse it - preserve the original
+                except:
+                    pass  # Keep original date if parsing fails
+
+    # Ensure date field always exists
+    if not context.get('date'):
+        context['date'] = datetime.now().strftime('%Y-%m-%d')
+
+    return jsonify(context)
 
 @experiment_bp.route('/materials', methods=['GET', 'POST'])
 def experiment_materials():

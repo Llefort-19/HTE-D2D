@@ -114,13 +114,12 @@ const Procedure = () => {
 
   const loadProcedure = useCallback(async () => {
     try {
-      const [procedureResponse, contextResponse] = await Promise.all([
-        axios.get("/api/experiment/procedure"),
-        axios.get("/api/experiment/context")
-      ]);
-      
+      // Make requests sequentially to avoid rate limiting
+      const procedureResponse = await axios.get("/api/experiment/procedure");
+      const contextResponse = await axios.get("/api/experiment/context");
+
       setProcedure(procedureResponse.data || []);
-      
+
       // Only set plate type from context on initial load, not on every refresh
       const context = contextResponse.data || {};
       if (context.plate_type && !procedure.length) {
@@ -146,18 +145,26 @@ const Procedure = () => {
   }, []);
 
   useEffect(() => {
-    loadProcedure();
-    loadMaterials();
-    
+    // Load data sequentially with a small delay to avoid rate limiting
+    const loadData = async () => {
+      await loadProcedure();
+      // Small delay before loading materials
+      setTimeout(() => {
+        loadMaterials();
+      }, 100);
+    };
+
+    loadData();
+
     // Listen for help events from header
     const handleHelpEvent = (event) => {
       if (event.detail.tabId === 'procedure') {
         setShowHelpModal(true);
       }
     };
-    
+
     window.addEventListener('showHelp', handleHelpEvent);
-    
+
     return () => {
       window.removeEventListener('showHelp', handleHelpEvent);
     };
@@ -165,10 +172,13 @@ const Procedure = () => {
 
   // Refresh data when component becomes visible
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (!document.hidden) {
-        loadProcedure();
-        loadMaterials();
+        await loadProcedure();
+        // Small delay before loading materials
+        setTimeout(() => {
+          loadMaterials();
+        }, 100);
       }
     };
 
@@ -225,8 +235,13 @@ const Procedure = () => {
     const alias = (material.alias || '').trim();
     const cas = (material.cas || '').trim();
     
+    // Normalize Unicode characters to handle cases like H2​SO4​ vs H2SO4
+    const normalizedName = name.normalize('NFKD').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const normalizedAlias = alias.normalize('NFKD').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const normalizedCas = cas.normalize('NFKD').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    
     // Create ID with consistent formatting
-    const id = `${name}_${alias}_${cas}`;
+    const id = `${normalizedName}_${normalizedAlias}_${normalizedCas}`;
     return id;
   };
 
@@ -610,15 +625,35 @@ const Procedure = () => {
       };
     });
 
+    // Also initialize totals for materials found in procedure but not in materials list
+    // This handles imported experiments where procedure materials might not match materials list exactly
+    procedure.forEach((wellData) => {
+      wellData.materials.forEach((material) => {
+        const materialId = getMaterialId(material);
+
+        // If this material ID doesn't exist in totals, create it
+        if (totals[materialId] === undefined) {
+          totals[materialId] = {
+            umol: 0,
+            μL: 0,
+            mg: 0,
+            hasMolecularWeight: !!material.molecular_weight, // Check if procedure material has molecular weight
+            unit: "μmol",
+            materialData: material, // Use procedure material data
+          };
+        }
+      });
+    });
+
     // Calculate totals from procedure data
     procedure.forEach((wellData) => {
       wellData.materials.forEach((material) => {
         const materialId = getMaterialId(material);
-        
+
         if (totals[materialId] !== undefined) {
           const unit = material.unit || "μmol";
           const amount = parseFloat(material.amount) || 0;
-          
+
           if (unit === "μL") {
             totals[materialId].μL += amount;
             totals[materialId].unit = "μL";
@@ -630,14 +665,78 @@ const Procedure = () => {
       });
     });
 
-    // Calculate mg amounts using current molecular weights from materials list
+    // Calculate mg amounts using molecular weights from both materials list and procedure materials
+    // First, create a map of material IDs to molecular weights
+    const molecularWeightMap = new Map();
+
+    // Add molecular weights from materials list
     materials.forEach((material) => {
       const materialId = getMaterialId(material);
-      if (totals[materialId]) {
-        // Calculate mg: (molecular_weight * amount_umol) / 100
-        const mg = ((material.molecular_weight || 0) * totals[materialId].umol) / 100;
-        totals[materialId].mg = mg;
-        totals[materialId].hasMolecularWeight = !!material.molecular_weight;
+      if (material.molecular_weight) {
+        molecularWeightMap.set(materialId, material.molecular_weight);
+      }
+    });
+
+    // Add molecular weights from procedure materials (if any)
+    procedure.forEach((wellData) => {
+      wellData.materials.forEach((material) => {
+        const materialId = getMaterialId(material);
+        if (material.molecular_weight && !molecularWeightMap.has(materialId)) {
+          molecularWeightMap.set(materialId, material.molecular_weight);
+        }
+      });
+    });
+
+    // Create a fallback matching system by name/alias only (ignore CAS)
+    // This handles cases where materials have same name but different/missing CAS
+    const createNameKey = (material) => {
+      const name = (material.name || '').trim().normalize('NFKD').replace(/[\u200B-\u200D\uFEFF]/g, '');
+      const alias = (material.alias || '').trim().normalize('NFKD').replace(/[\u200B-\u200D\uFEFF]/g, '');
+      // Use whichever is available - alias or name
+      const key = alias || name;
+      return key.toLowerCase();
+    };
+
+    // Create a map of name keys to molecular weights from materials list
+    const nameToMolecularWeightMap = new Map();
+    materials.forEach((material) => {
+      if (material.molecular_weight) {
+        const nameKey = createNameKey(material);
+        if (nameKey && !nameToMolecularWeightMap.has(nameKey)) {
+          nameToMolecularWeightMap.set(nameKey, parseFloat(material.molecular_weight));
+        }
+      }
+    });
+
+    // For materials that don't have molecular weights via exact ID match, try name matching
+    Object.keys(totals).forEach((materialId) => {
+      if (!molecularWeightMap.has(materialId)) {
+        const materialData = totals[materialId].materialData;
+        if (materialData) {
+          const nameKey = createNameKey(materialData);
+          const molecularWeight = nameToMolecularWeightMap.get(nameKey);
+          if (molecularWeight) {
+            molecularWeightMap.set(materialId, molecularWeight);
+          }
+        }
+      }
+    });
+
+    // Calculate mg amounts for all materials with totals
+    Object.keys(totals).forEach((materialId) => {
+      const molecularWeight = molecularWeightMap.get(materialId);
+      if (molecularWeight) {
+        // Update hasMolecularWeight flag based on whether we have molecular weight data
+        totals[materialId].hasMolecularWeight = true;
+        
+        // Calculate mg only if we have umol amounts
+        if (totals[materialId].umol > 0) {
+          // Calculate mg: μmol * molecular_weight / 1000
+          // μmol * g/mol = μg (micrograms)
+          // Divide by 1000 to get mg (milligrams)
+          const mg = (molecularWeight * totals[materialId].umol) / 1000;
+          totals[materialId].mg = mg;
+        }
       }
     });
 
@@ -646,6 +745,31 @@ const Procedure = () => {
 
   // Calculate material totals once outside of render
   const materialTotals = calculateMaterialTotals();
+
+  // Create a combined list of all materials (from materials list + procedure materials)
+  const allMaterialsForDisplay = () => {
+    const materialMap = new Map();
+
+    // Add materials from the materials list
+    materials.forEach((material, index) => {
+      const materialId = getMaterialId(material);
+      materialMap.set(materialId, { ...material, index, fromMaterialsList: true });
+    });
+
+    // Add materials from procedure that aren't in the materials list
+    procedure.forEach((wellData) => {
+      wellData.materials.forEach((material) => {
+        const materialId = getMaterialId(material);
+        if (!materialMap.has(materialId)) {
+          materialMap.set(materialId, { ...material, fromMaterialsList: false });
+        }
+      });
+    });
+
+    return Array.from(materialMap.values());
+  };
+
+  const displayMaterials = allMaterialsForDisplay();
 
   return (
     <div className="card">
@@ -680,13 +804,13 @@ const Procedure = () => {
                       </div>
                     </td>
                   </tr>
-                ) : materials.length === 0 ? (
+                ) : displayMaterials.length === 0 ? (
                   <tr>
                     <td colSpan="3" style={{ textAlign: "center", padding: "20px", color: "var(--color-text-secondary)" }}>
                       No materials available. Switch to the Materials tab to add materials.
                     </td>
                   </tr>
-                ) : materials.map((material, index) => {
+                ) : displayMaterials.map((material, index) => {
                   const materialId = getMaterialId(material);
                   const totalData = materialTotals[materialId] || {
                     umol: 0,
@@ -695,13 +819,13 @@ const Procedure = () => {
                     hasMolecularWeight: false,
                     unit: "μmol"
                   };
-                  
+
                   // Check if this material should be highlighted using unique identifier
                   const isSelected = selectedMaterial && getMaterialId(selectedMaterial) === getMaterialId(material);
-                  
+
                   return (
                     <tr
-                      key={index}
+                      key={materialId}
                       className={
                         isSelected
                           ? "selected-row"
@@ -711,12 +835,12 @@ const Procedure = () => {
                       style={{ cursor: "pointer" }}
                     >
                       <td>{material.alias || material.name}</td>
-                      <td>{material.cas}</td>
+                      <td>{material.cas || (material.fromMaterialsList ? "" : "N/A")}</td>
                       <td className="total-amount">
                         {(totalData.umol > 0 || totalData.μL > 0) ? (
                           <div className="amount-display">
                             <div className="amount-umol">
-                              {totalData.unit === "μL" 
+                              {totalData.unit === "μL"
                                 ? `${formatAmount(totalData.μL)} μL`
                                 : `${formatAmount(totalData.umol)} μmol`
                               }

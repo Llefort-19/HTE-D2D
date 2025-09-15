@@ -56,19 +56,41 @@ const ProcedureSettings = () => {
     try {
       const response = await axios.get("/api/experiment/procedure-settings");
       const data = response.data || {};
-      setReactionConditions(data.reactionConditions || {
+      
+      // Ensure all values are strings to avoid controlled/uncontrolled input issues
+      const defaultReactionConditions = {
         temperature: "",
         time: "",
         pressure: "",
         wavelength: "",
         remarks: ""
-      });
-      setAnalyticalDetails(data.analyticalDetails || {
+      };
+      
+      const defaultAnalyticalDetails = {
         uplcNumber: "",
         method: "",
         duration: "",
         wavelength: "",
         remarks: ""
+      };
+      
+      // Merge with imported data, ensuring all values are strings
+      const reactionData = data.reactionConditions || {};
+      setReactionConditions({
+        temperature: String(reactionData.temperature || ""),
+        time: String(reactionData.time || ""),
+        pressure: String(reactionData.pressure || ""),
+        wavelength: String(reactionData.wavelength || ""),
+        remarks: String(reactionData.remarks || "")
+      });
+      
+      const analyticalData = data.analyticalDetails || {};
+      setAnalyticalDetails({
+        uplcNumber: String(analyticalData.uplcNumber || ""),
+        method: String(analyticalData.method || ""),
+        duration: String(analyticalData.duration || ""),
+        wavelength: String(analyticalData.wavelength || ""),
+        remarks: String(analyticalData.remarks || "")
       });
     } catch (error) {
       console.error("Error loading procedure settings:", error);

@@ -5,6 +5,9 @@ import axios from 'axios';
 const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
   const { showSuccess, showError } = useToast();
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [selectedImportFile, setSelectedImportFile] = useState(null);
   
   const tabs = [
     { id: "context", label: "Experiment Context" },
@@ -29,6 +32,65 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
 
   const handleHelp = () => {
     onShowHelp(activeTab);
+  };
+
+  const handleImportClick = () => {
+    setShowImportModal(true);
+  };
+
+  const handleImportFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedImportFile(file);
+    }
+  };
+
+  const handleImportExperiment = async () => {
+    if (!selectedImportFile) {
+      showError("Please select a file first");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedImportFile);
+
+      const response = await axios.post('/api/experiment/import', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      showSuccess(response.data.message);
+      setShowImportModal(false);
+      setSelectedImportFile(null);
+      
+      // Clear the file input
+      const fileInput = document.getElementById('import-file-input');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+
+      // Force page reload to refresh all components with new data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      
+    } catch (error) {
+      console.error("Error importing experiment:", error);
+      showError("Error importing experiment: " + (error.response?.data?.error || error.message));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setSelectedImportFile(null);
+    // Clear the file input
+    const fileInput = document.getElementById('import-file-input');
+    if (fileInput) {
+      fileInput.value = '';
+    }
   };
 
   const exportToExcel = async () => {
@@ -363,7 +425,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
         
         if (mostRecentUpload && mostRecentUpload.data && mostRecentUpload.data.length > 0) {
           // Create the correct column order: Nr, Well, ID, Name_1, Area_1, Name_2, Area_2, etc.
-          const orderedColumns = ['Nr', 'Well', 'ID'];
+          const orderedColumns = ['Well', 'Sample ID'];
           
           // Find all Name_X and Area_X columns and sort them by number
           const nameColumns = [];
@@ -397,12 +459,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
             if (areaColumns[i]) orderedColumns.push(areaColumns[i]);
           }
           
-          // Add any remaining columns that don't follow the Name_X/Area_X pattern
-          Object.keys(mostRecentUpload.data[0]).forEach(key => {
-            if (!orderedColumns.includes(key)) {
-              orderedColumns.push(key);
-            }
-          });
+          // Only include standard columns - do NOT add any extra columns from the uploaded file
           
           // Create headers with correct order
           const headers = orderedColumns;
@@ -420,17 +477,125 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
           const ws = XLSX.utils.aoa_to_sheet(data);
           XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
         } else {
-          // Create empty sheet if no data in the upload
-          const ws = XLSX.utils.aoa_to_sheet([['No analytical data available']]);
-          XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+          // Create analytical template even when no data in upload
+          await createAnalyticalTemplate(wb, XLSX);
         }
       } else {
-        // Create empty sheet if no uploaded files
-        const ws = XLSX.utils.aoa_to_sheet([['No analytical data available']]);
-        XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+        // Create analytical template when no uploaded files
+        await createAnalyticalTemplate(wb, XLSX);
       }
     } catch (error) {
       console.error('Error exporting analytical data:', error);
+      // Fallback to empty sheet
+      const ws = XLSX.utils.aoa_to_sheet([['Error loading analytical data']]);
+      XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+    }
+  };
+
+  const createAnalyticalTemplate = async (wb, XLSX) => {
+    try {
+      // Get ELN number from context
+      const contextResponse = await axios.get('/api/experiment/context');
+      const context = contextResponse.data;
+      const elnNumber = context.eln || 'ELN';
+
+      // Get materials to determine compounds for template
+      let selectedCompounds = [];
+      try {
+        const materialsResponse = await axios.get('/api/experiment/materials');
+        const materials = materialsResponse.data || [];
+        
+        // Get materials that are typically analyzed (reactants, products, internal standards)
+        const analyticalRoles = ['reactant', 'product', 'target product', 'internal standard'];
+        materials.forEach(material => {
+          const role = (material.role || '').toLowerCase();
+          if (analyticalRoles.some(analyticalRole => role.includes(analyticalRole))) {
+            selectedCompounds.push({
+              name: material.alias || material.name || '',
+              selected: true
+            });
+          }
+        });
+      } catch (error) {
+        console.warn('Could not fetch materials for analytical template:', error);
+      }
+
+      // If no compounds from materials, create default set
+      if (selectedCompounds.length === 0) {
+        selectedCompounds = [
+          { name: 'Compound_1', selected: true },
+          { name: 'Compound_2', selected: true },
+          { name: 'Compound_3', selected: true },
+          { name: 'Compound_4', selected: true }
+        ];
+      }
+
+      // Limit to reasonable number of compounds (template shows 4)
+      selectedCompounds = selectedCompounds.slice(0, 4);
+
+      // Create headers in the exact format: Nr, Well, ID, Name_1, Area_1, Name_2, Area_2, etc.
+      const headers = ['Well', 'Sample ID'];
+      selectedCompounds.forEach((compound, i) => {
+        headers.push(`Name_${i + 1}`, `Area_${i + 1}`);
+      });
+
+      const data = [headers];
+
+      // Get plate type from context to generate appropriate number of wells
+      const plateType = context.plate_type || '96';
+      
+      // Get plate configuration based on type
+      const getPlateConfig = (plateType) => {
+        if (plateType === "24") {
+          return {
+            rows: ['A', 'B', 'C', 'D'],
+            columns: [1, 2, 3, 4, 5, 6]
+          };
+        } else if (plateType === "48") {
+          return {
+            rows: ['A', 'B', 'C', 'D', 'E', 'F'],
+            columns: [1, 2, 3, 4, 5, 6, 7, 8]
+          };
+        } else { // Default to 96-well
+          return {
+            rows: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+            columns: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+          };
+        }
+      };
+
+      const plateConfig = getPlateConfig(plateType);
+      
+      // Generate wells based on plate type
+      for (const col of plateConfig.rows) {
+        for (const row of plateConfig.columns) {
+          const well = `${col}${row}`;
+          const wellId = `${elnNumber}_${well}`;
+
+          // Create row with Well, Sample ID
+          const rowData = [well, wellId];
+
+          // Add compound name and empty area placeholders for template
+          selectedCompounds.forEach(compound => {
+            const compoundName = compound.name || '';
+            rowData.push(compoundName, ''); // Empty area for template
+          });
+
+          data.push(rowData);
+        }
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
+    } catch (error) {
+      console.error('Error creating analytical template:', error);
+      // Fallback to basic template
+      const data = [
+        ['Nr', 'Well', 'ID', 'Name_1', 'Area_1'],
+        [1, 'A1', 'ELN_A1', 'Compound_1', '']
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Analytical Data');
     }
   };
 
@@ -548,58 +713,110 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
   };
 
       return (
-      <header className="clean-header">
-        <div className="header-flex-container">
-          {/* Brand Section - Left */}
-          <div className="header-brand">
-            <img 
-              src="/logo-hte-d2d.png" 
-              alt="HTE D2D" 
-              className="brand-logo"
-            />
-          </div>
+        <>
+          <header className="clean-header">
+            <div className="header-flex-container">
+              {/* Brand Section - Left */}
+              <div className="header-brand">
+                <img 
+                  src="/logo-hte-d2d.png" 
+                  alt="HTE D2D" 
+                  className="brand-logo"
+                />
+              </div>
 
-          {/* Navigation Section - Center */}
-          <nav className="header-navigation">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={`nav-pill ${activeTab === tab.id ? "active" : ""}`}
-                onClick={() => onTabChange(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+              {/* Navigation Section - Center */}
+              <nav className="header-navigation">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={`nav-pill ${activeTab === tab.id ? "active" : ""}`}
+                    onClick={() => onTabChange(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
 
-          {/* Action Buttons - Right */}
-          <div className="header-actions">
-            <button 
-              className="action-btn action-export"
-              onClick={exportToExcel}
-              disabled={isExporting}
-              title="Export all experiment data to Excel"
-            >
-              {isExporting ? 'Exporting...' : 'Export'}
-            </button>
-            <button 
-              className="action-btn action-help"
-              onClick={handleHelp}
-              title={`Help for ${activeTab} tab`}
-            >
-              Help
-            </button>
-            <button 
-              className="action-btn action-reset"
-              onClick={handleReset}
-              title="Reset all experiment data"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      </header>
-  );
+              {/* Action Buttons - Right */}
+              <div className="header-actions">
+                <button 
+                  className="action-btn action-import"
+                  onClick={handleImportClick}
+                  title="Import experiment from Excel file"
+                >
+                  Import
+                </button>
+                <button 
+                  className="action-btn action-export"
+                  onClick={exportToExcel}
+                  disabled={isExporting}
+                  title="Export all experiment data to Excel"
+                >
+                  {isExporting ? 'Exporting...' : 'Export'}
+                </button>
+                <button 
+                  className="action-btn action-help"
+                  onClick={handleHelp}
+                  title={`Help for ${activeTab} tab`}
+                >
+                  Help
+                </button>
+                <button 
+                  className="action-btn action-reset"
+                  onClick={handleReset}
+                  title="Reset all experiment data"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* Import Modal */}
+          {showImportModal && (
+            <div className="modal-overlay">
+              <div className="modal-content" style={{ maxWidth: "600px", width: "95%" }}>
+                <div className="modal-header">
+                  <h3>Import Experiment</h3>
+                  <button className="modal-close" onClick={closeImportModal}>×</button>
+                </div>
+                <div className="modal-body">
+                  <div style={{ marginBottom: "20px" }}>
+                    <p style={{ marginBottom: "15px", color: "var(--color-text-secondary)" }}>
+                      Select an Excel file (.xlsx) that was previously exported from this application. 
+                      All experiment data (context, materials, procedure, settings, analytical data, and results) 
+                      will be imported and loaded into the current experiment.
+                    </p>
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <input
+                        type="file"
+                        className="form-control"
+                        accept=".xlsx,.xls"
+                        onChange={handleImportFileSelect}
+                        id="import-file-input"
+                        style={{ width: "400px" }}
+                      />
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleImportExperiment}
+                        disabled={!selectedImportFile || isImporting}
+                      >
+                        {isImporting ? "Importing..." : "Import Experiment"}
+                      </button>
+                    </div>
+                    {selectedImportFile && (
+                      <div style={{ marginTop: "10px", padding: "10px", backgroundColor: "var(--color-surface)", borderRadius: "4px" }}>
+                        <strong>Selected file:</strong> {selectedImportFile.name}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      );
 };
 
 export default Header;

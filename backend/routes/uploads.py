@@ -38,13 +38,32 @@ def export_analytical_template():
             cell.font = Font(bold=True)
             cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
         
-        # Generate 96 wells (8 rows x 12 columns)
-        rows = ["A", "B", "C", "D", "E", "F", "G", "H"]
-        columns = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
-        
-        # Get ELN number from context for sample IDs
+        # Get experiment context for ELN number and plate type
         context = current_experiment.get('context', {})
         eln_number = context.get('eln', 'ELN-001')  # Use 'eln' field from context
+        plate_type = context.get('plate_type', '96')  # Default to 96-well if not set
+        
+        # Generate wells based on plate type
+        def get_plate_config(plate_type):
+            if plate_type == "24":
+                return {
+                    'rows': ["A", "B", "C", "D"],
+                    'columns': ["1", "2", "3", "4", "5", "6"]
+                }
+            elif plate_type == "48":
+                return {
+                    'rows': ["A", "B", "C", "D", "E", "F"],
+                    'columns': ["1", "2", "3", "4", "5", "6", "7", "8"]
+                }
+            else:  # Default to 96-well
+                return {
+                    'rows': ["A", "B", "C", "D", "E", "F", "G", "H"],
+                    'columns': ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+                }
+        
+        plate_config = get_plate_config(plate_type)
+        rows = plate_config['rows']
+        columns = plate_config['columns']
         
         row_num = 2
         for row in rows:
@@ -201,25 +220,29 @@ def upload_analytical_data():
         for _, row in df.iterrows():
             processed_row = row.to_dict()  # Convert pandas Series to dict
             
-            # Check if there's a 'Sample ID' column and fix the format
+            # Handle ID column mapping - if file has 'ID' column but no 'Sample ID', map it
+            id_value = None
             if 'Sample ID' in processed_row:
-                sample_id = processed_row['Sample ID']
-                if sample_id and isinstance(sample_id, str):
-                    # Check if it's in the wrong format (contains hyphen instead of underscore)
-                    if '-' in sample_id and '_' not in sample_id:
-                        # Extract well position (assuming format like "ELN-001-A1")
-                        parts = sample_id.split('-')
-                        if len(parts) >= 3:
-                            well_part = '-'.join(parts[2:])  # Get the well part (A1, B2, etc.)
-                            processed_row['Sample ID'] = f"{eln_number}_{well_part}"
-                    # If no ELN number in the ID, add it
-                    elif not sample_id.startswith(eln_number):
-                        # Extract well position from the ID
-                        import re
-                        well_match = re.search(r'[A-H]\d+', sample_id)
-                        if well_match:
-                            well_part = well_match.group()
-                            processed_row['Sample ID'] = f"{eln_number}_{well_part}"
+                id_value = processed_row['Sample ID']
+            elif 'ID' in processed_row:
+                # Map ID column to Sample ID
+                id_value = processed_row['ID']
+                processed_row['Sample ID'] = id_value
+            
+            # Process the ID/Sample ID value to ensure correct format
+            if id_value and isinstance(id_value, str):
+                import re
+                
+                # Extract well position (A1, B2, etc.) from the ID
+                well_match = re.search(r'[A-H]\d{1,2}', id_value)
+                if well_match:
+                    well_part = well_match.group()
+                    
+                    # Create the correct Sample ID format: ELN_WellLocation
+                    correct_sample_id = f"{eln_number}_{well_part}"
+                    processed_row['Sample ID'] = correct_sample_id
+                    
+                    print(f"Mapped ID '{id_value}' to Sample ID '{correct_sample_id}'")
             
             processed_data.append(processed_row)
         

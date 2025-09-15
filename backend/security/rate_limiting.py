@@ -28,8 +28,8 @@ def is_rate_limited(ip: str, limit_type: str = 'api') -> tuple[bool, str]:
         max_requests = current_app.config.get('UPLOAD_RATE_LIMIT', 10)  # 10 uploads per 5 min
         attempts = upload_attempts[ip]
     else:
-        window = current_app.config.get('API_RATE_WINDOW', 60)  # 1 minute  
-        max_requests = current_app.config.get('API_RATE_LIMIT', 100)  # 100 requests per minute
+        window = current_app.config.get('API_RATE_WINDOW', 60)  # 1 minute
+        max_requests = current_app.config.get('API_RATE_LIMIT', 100)  # 100 requests per minute (default matches config)
         attempts = api_attempts[ip]
     
     # Remove old attempts outside the window
@@ -42,6 +42,10 @@ def is_rate_limited(ip: str, limit_type: str = 'api') -> tuple[bool, str]:
     
     # Record this attempt
     attempts.append(now)
+    
+    # Log in debug mode for development
+    if current_app.config.get('DEBUG', False):
+        current_app.logger.debug(f"Rate limit check for IP {ip}: {len(attempts)}/{max_requests} {limit_type} requests in {window}s window")
     
     return False, ""
 

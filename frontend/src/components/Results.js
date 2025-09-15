@@ -77,33 +77,55 @@ const Results = () => {
         {analyticalData ? (
           <div>
             <div style={{ marginBottom: "15px" }}>
-              <strong>File:</strong> {analyticalData.filename} | 
-              <strong>Uploaded:</strong> {new Date(analyticalData.upload_date).toLocaleString()} | 
-              <strong>Shape:</strong> {analyticalData.shape[0]} rows × {analyticalData.shape[1]} columns
+              <strong>File:</strong> {analyticalData.filename || 'imported_data.xlsx'} | 
+              <strong>Uploaded:</strong> {analyticalData.upload_date ? new Date(analyticalData.upload_date).toLocaleString() : 'Imported'} | 
+              <strong>Shape:</strong> {analyticalData.shape && analyticalData.shape.length >= 2 ? `${analyticalData.shape[0]} rows × ${analyticalData.shape[1]} columns` : `${analyticalData.data ? analyticalData.data.length : 0} rows`}
             </div>
             
             <div className="scrollable-table-container">
               <table className="table table-striped">
                 <thead>
                   <tr>
-                    {analyticalData.columns.map((column, index) => (
-                      <th key={index}>{column}</th>
-                    ))}
+                    {(() => {
+                      // Filter to only show standard columns: Well, Sample ID, Name_X, Area_X
+                      const allColumns = analyticalData.columns || (analyticalData.data && analyticalData.data.length > 0 ? Object.keys(analyticalData.data[0]) : []);
+                      const standardColumns = allColumns.filter(column => 
+                        column === 'Well' || 
+                        column === 'Sample ID' || 
+                        column.startsWith('Name_') || 
+                        column.startsWith('Area_')
+                      );
+                      
+                      return standardColumns.map((column, index) => (
+                        <th key={index}>{column}</th>
+                      ));
+                    })()}
                   </tr>
                 </thead>
                 <tbody>
-                  {analyticalData.data.map((row, rowIndex) => (
+                  {analyticalData.data && analyticalData.data.map((row, rowIndex) => (
                     <tr key={rowIndex}>
-                      {analyticalData.columns.map((column, colIndex) => {
-                        const value = row[column];
-                        // Format Area columns with 4 significant digits
-                        const isAreaColumn = column.startsWith('Area_');
-                        const displayValue = isAreaColumn ? formatToSignificantDigits(value) : value;
-                        
-                        return (
-                          <td key={colIndex}>{displayValue}</td>
+                      {(() => {
+                        // Filter to only show standard columns: Well, Sample ID, Name_X, Area_X
+                        const allColumns = analyticalData.columns || (analyticalData.data.length > 0 ? Object.keys(analyticalData.data[0]) : []);
+                        const standardColumns = allColumns.filter(column => 
+                          column === 'Well' || 
+                          column === 'Sample ID' || 
+                          column.startsWith('Name_') || 
+                          column.startsWith('Area_')
                         );
-                      })}
+                        
+                        return standardColumns.map((column, colIndex) => {
+                          const value = row[column];
+                          // Format Area columns with 4 significant digits
+                          const isAreaColumn = column.startsWith('Area_');
+                          const displayValue = isAreaColumn ? formatToSignificantDigits(value) : value;
+                          
+                          return (
+                            <td key={colIndex}>{displayValue}</td>
+                          );
+                        });
+                      })()}
                     </tr>
                   ))}
                 </tbody>

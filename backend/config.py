@@ -66,6 +66,11 @@ class DevelopmentConfig(Config):
     DEBUG = True
     CORS_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
     LOG_LEVEL = 'DEBUG'
+    # More lenient rate limits for development
+    API_RATE_LIMIT = 1000  # 1000 requests per minute
+    API_RATE_WINDOW = 60  # 1 minute
+    UPLOAD_RATE_LIMIT = 50  # 50 uploads per 5 minutes
+    UPLOAD_RATE_WINDOW = 300  # 5 minutes
 
 class ProductionConfig(Config):
     """Production configuration."""

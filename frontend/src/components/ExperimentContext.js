@@ -45,7 +45,7 @@ const ExperimentContext = () => {
   useEffect(() => {
     loadContext();
     loadCurrentMaterials();
-    
+
     // Check if this is a fresh app start (not a page refresh)
     // If there's no session flag, clear any existing SDF data for a clean start
     const hasActiveSession = sessionStorage.getItem('experimentSessionActive');
@@ -176,7 +176,7 @@ const ExperimentContext = () => {
         // Ensure all fields have defined values to prevent controlled/uncontrolled input switching
         const loadedContext = {
           author: response.data.author || "",
-          date: response.data.date || new Date().toISOString().split("T")[0],
+          date: response.data.date && response.data.date !== "" ? response.data.date : new Date().toISOString().split("T")[0],
           project: response.data.project || "",
           eln: response.data.eln || "",
           objective: response.data.objective || "",

@@ -784,9 +784,7 @@ const Header = ({ activeTab, onTabChange, onReset, onShowHelp }) => {
                 <div className="modal-body">
                   <div style={{ marginBottom: "20px" }}>
                     <p style={{ marginBottom: "15px", color: "var(--color-text-secondary)" }}>
-                      Select an Excel file (.xlsx) that was previously exported from this application. 
-                      All experiment data (context, materials, procedure, settings, analytical data, and results) 
-                      will be imported and loaded into the current experiment.
+                      Select an Excel file to import experiment data.
                     </p>
                     <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
                       <input

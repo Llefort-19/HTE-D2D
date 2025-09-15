@@ -879,7 +879,8 @@ const Heatmap = () => {
                                      let displayValue = '';
                                      if (value > 0) {
                                        if (heatmap.formulaBuilder?.asPercentage) {
-                                         displayValue = `${Math.round(value * 100)}%`;
+                                         // Value is already multiplied by 100 in the formula, just show the result
+                                         displayValue = formatHeatmapNumber(value);
                                        } else {
                                          // Format with 3 significant digits for numbers ≤999, all digits for >999
                                          displayValue = formatHeatmapNumber(value);
@@ -1071,7 +1072,7 @@ const Heatmap = () => {
                 <li><strong>Light Colors:</strong> Low values</li>
                 <li><strong>Dark Colors:</strong> High values</li>
                                  <li><strong>Color Schemes:</strong> Choose from Blue, Blue-Yellow-Red, Green-Blue, or Purple-Green-Yellow</li>
-                <li><strong>Value Display:</strong> Percentages show as whole numbers (e.g., "85%"), other values show 3 significant digits for numbers ≤999 or all digits for numbers &gt;999</li>
+                <li><strong>Value Display:</strong> When using "multiply by 100" in formula builder, values are displayed as the result of multiplication (e.g., "85" instead of "85%"). Other values show 3 significant digits for numbers ≤999 or all digits for numbers &gt;999</li>
               </ul>
             </div>
             <div className="modal-footer">

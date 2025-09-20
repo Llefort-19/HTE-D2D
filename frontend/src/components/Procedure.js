@@ -746,32 +746,22 @@ const Procedure = () => {
   // Calculate material totals once outside of render
   const materialTotals = calculateMaterialTotals();
 
-  // Create a list of materials that are actually used in the procedure (with amounts)
+  // Create a list of materials for display in design tab
   const allMaterialsForDisplay = () => {
     const materialMap = new Map();
 
-    // Only add materials from procedure that have amounts (are actually used)
+    // First, add all materials from the materials list (for selection in new experiments)
+    materials.forEach((material, index) => {
+      const materialId = getMaterialId(material);
+      materialMap.set(materialId, { ...material, index, fromMaterialsList: true });
+    });
+
+    // Then, add materials from procedure that aren't in the materials list
     procedure.forEach((wellData) => {
       wellData.materials.forEach((material) => {
         const materialId = getMaterialId(material);
         if (!materialMap.has(materialId)) {
-          // Try to find matching material from materials list for additional data
-          const matchingMaterial = materials.find(m => getMaterialId(m) === materialId);
-          if (matchingMaterial) {
-            // Use materials list data but preserve procedure amounts
-            materialMap.set(materialId, { 
-              ...matchingMaterial, 
-              amount: material.amount,
-              unit: material.unit,
-              fromMaterialsList: true 
-            });
-          } else {
-            // Use procedure material data
-            materialMap.set(materialId, { 
-              ...material, 
-              fromMaterialsList: false 
-            });
-          }
+          materialMap.set(materialId, { ...material, fromMaterialsList: false });
         }
       });
     });
